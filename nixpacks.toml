@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python311", "postgresql", "gcc"]
+nixPkgs = ["python311", "postgresql", "gcc", "stdenv.cc.cc.lib"]
 
 [phases.install]
 cmds = ["python -m venv --copies /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt"]
