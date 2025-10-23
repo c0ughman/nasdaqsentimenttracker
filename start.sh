@@ -3,6 +3,9 @@
 
 set -e  # Exit on error
 
+# Add GCC library path for numpy/pandas C extensions
+export LD_LIBRARY_PATH=/nix/store/*-gcc-*-lib/lib:$LD_LIBRARY_PATH
+
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
