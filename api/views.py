@@ -258,9 +258,9 @@ def dashboard_data(request):
                 'rsi_14': latest_run.rsi_14,
                 'macd': latest_run.macd,
                 'macd_signal': latest_run.macd_signal,
-                'bb_upper': float(latest_run.bb_upper) if latest_run.bb_upper else None,
-                'bb_middle': float(latest_run.bb_middle) if latest_run.bb_middle else None,
-                'bb_lower': float(latest_run.bb_lower) if latest_run.bb_lower else None
+            'bb_upper': latest_run.bb_upper,
+            'bb_middle': latest_run.bb_middle,
+            'bb_lower': latest_run.bb_lower
             },
             'current_score': {
                 'analyst_recommendations_score': round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else None,
