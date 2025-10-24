@@ -279,13 +279,6 @@ def dashboard_data(request):
             'error': 'NASDAQ ticker not found',
             'message': 'NASDAQ composite index ticker (^IXIC) not found in database'
         }, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        import traceback
-        return Response({
-            'error': 'Internal server error',
-            'message': str(e),
-            'traceback': traceback.format_exc()
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])

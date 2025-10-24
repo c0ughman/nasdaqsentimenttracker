@@ -33,7 +33,7 @@ class AnalysisRunAdmin(admin.ModelAdmin):
     ]
     list_filter = ['sentiment_label', 'timestamp', 'ticker']
     search_fields = ['ticker__symbol']
-    readonly_fields = ['timestamp', 'sentiment_label', 'analyst_recommendations_score', 'analyst_recommendations_score_display']
+    readonly_fields = ['timestamp', 'sentiment_label', 'analyst_recommendations_score']
     date_hierarchy = 'timestamp'
 
     # Custom display methods for the 3 drivers
