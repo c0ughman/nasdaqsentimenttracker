@@ -190,7 +190,7 @@ def dashboard_data(request):
         # Calculate news composite (from company + market news)
         # The old composite was 70% company + 30% market
         # To extract just the news part from stored data, we use avg_base_sentiment * 100
-        news_sentiment_raw = latest_run.avg_base_sentiment * 100 if latest_run.avg_base_sentiment else 0
+        news_sentiment_raw = latest_run.avg_base_sentiment if latest_run.avg_base_sentiment else 0
 
         # Four sentiment drivers with optimized weights for market prediction
         drivers = {
