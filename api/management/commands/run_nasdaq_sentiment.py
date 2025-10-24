@@ -64,8 +64,8 @@ ARTICLE_WEIGHTS = {
     'recency': 0.10
 }
 
-# Cache to track seen articles in current session
-seen_articles = set()
+# Cache removed - database deduplication via article_hash is sufficient
+# seen_articles = set()  # REMOVED: Unnecessary penalty on articles
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -196,10 +196,9 @@ def calculate_surprise_factor(text):
 
 
 def calculate_novelty(article_hash):
-    """Check if article is novel or duplicate"""
-    if article_hash in seen_articles:
-        return 0.2
-    seen_articles.add(article_hash)
+    """All articles are considered novel - database handles true deduplication"""
+    # Removed seen_articles cache - database article_hash index prevents duplicates
+    # All articles in current analysis get full novelty score
     return 1.0
 
 
@@ -1006,7 +1005,10 @@ def run_nasdaq_composite_analysis(finnhub_client):
         company_sentiment * SENTIMENT_WEIGHTS['company_news'] +
         market_sentiment * SENTIMENT_WEIGHTS['market_news']
     )
-    
+
+    # Save news_composite for database (fixes scale bug - was saving avg_base_sentiment -1 to +1 instead)
+    news_sentiment_for_db = news_composite  # Correctly scaled: -50 to +50
+
     # Step 8: Get NASDAQ index price and OHLCV data from Yahoo Finance (NASDAQ Composite Index)
     try:
         print(f"\n📊 Fetching real-time OHLCV from Yahoo Finance...")
@@ -1094,7 +1096,11 @@ def run_nasdaq_composite_analysis(finnhub_client):
         cached_count = sum(1 for a in all_articles if a['is_cached'])
         new_count = total_articles - cached_count
 
-        avg_base_sentiment = sum(a['base_sentiment'] for a in all_articles) / total_articles if total_articles else 0
+        # SCALE BUG FIX: Save news_composite (article_score scale) instead of raw base_sentiment
+        # Old (WRONG): avg_base_sentiment = sum(a['base_sentiment'] for a in all_articles) / total_articles  # -1 to +1
+        # New (CORRECT): Use calculated news_composite which is on -50 to +50 scale
+        avg_base_sentiment = news_sentiment_for_db  # Now correctly scaled to match other components
+
         avg_surprise = sum(a['surprise_factor'] for a in all_articles) / total_articles if total_articles else 1.0
         avg_novelty = sum(a['novelty_score'] for a in all_articles) / total_articles if total_articles else 1.0
         avg_credibility = sum(a['source_credibility'] for a in all_articles) / total_articles if total_articles else 0.5
@@ -1104,7 +1110,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
         analysis_run = AnalysisRun.objects.create(
             ticker=nasdaq_ticker,
             composite_score=float(final_composite_score),
-            avg_base_sentiment=avg_base_sentiment,
+            avg_base_sentiment=avg_base_sentiment,  # Now uses news_composite (correctly scaled)
             avg_surprise_factor=avg_surprise,
             avg_novelty=avg_novelty,
             avg_source_credibility=avg_credibility,
