@@ -151,7 +151,13 @@ REST_FRAMEWORK = {
 # Get frontend URLs from environment variable (comma-separated)
 FRONTEND_URLS = os.environ.get('FRONTEND_URLS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
 
-CORS_ALLOWED_ORIGINS = FRONTEND_URLS
+# Filter out wildcards and only use specific domains for CORS_ALLOWED_ORIGINS
+CORS_ALLOWED_ORIGINS = [url for url in FRONTEND_URLS if '*' not in url]
+
+# Use regex for wildcard patterns
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.netlify\.app$",  # Allow all Netlify preview deployments
+]
 
 CORS_ALLOW_CREDENTIALS = False
 
