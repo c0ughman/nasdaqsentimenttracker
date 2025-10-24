@@ -5,6 +5,17 @@ from django.shortcuts import get_object_or_404
 from .models import Ticker, AnalysisRun, NewsArticle, TickerContribution
 from .serializers import AnalysisRunSerializer, TickerSerializer, TickerContributionSerializer
 from api.utils.market_hours import get_market_status
+import math
+
+
+def sanitize_float(value):
+    """Convert NaN and Infinity to None for JSON serialization"""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        if math.isnan(value) or math.isinf(value):
+            return None
+    return value
 
 
 @api_view(['GET'])
@@ -184,27 +195,27 @@ def dashboard_data(request):
         # Four sentiment drivers with optimized weights for market prediction
         drivers = {
             'news_sentiment': {
-                'score': round(news_sentiment_raw, 2),
+                'score': sanitize_float(round(news_sentiment_raw, 2) if news_sentiment_raw is not None else 0),
                 'weight': 35,  # Most impactful for immediate market reactions
                 'label': 'News Sentiment',
                 'articles_count': latest_run.articles_analyzed
             },
             'social_media': {
-                'score': round(latest_run.reddit_sentiment, 2) if latest_run.reddit_sentiment is not None else 0,
+                'score': sanitize_float(round(latest_run.reddit_sentiment, 2) if latest_run.reddit_sentiment is not None else 0),
                 'weight': 20,  # Retail sentiment and momentum indicator
                 'label': 'Social Media',
                 'posts_count': latest_run.reddit_posts_analyzed,
                 'comments_count': latest_run.reddit_comments_analyzed
             },
             'technical_indicators': {
-                'score': round(latest_run.technical_composite_score, 2) if latest_run.technical_composite_score is not None else 0,
+                'score': sanitize_float(round(latest_run.technical_composite_score, 2) if latest_run.technical_composite_score is not None else 0),
                 'weight': 25,  # Price action and momentum signals
                 'label': 'Technical Indicators',
-                'rsi': latest_run.rsi_14,
-                'macd': latest_run.macd
+                'rsi': sanitize_float(latest_run.rsi_14),
+                'macd': sanitize_float(latest_run.macd)
             },
             'analyst_recommendations': {
-                'score': round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else 0,
+                'score': sanitize_float(round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else 0),
                 'weight': 20,  # Professional institutional outlook
                 'label': 'Analyst Recommendations',
                 'recommendations_count': latest_run.analyst_recommendations_count,
@@ -215,7 +226,7 @@ def dashboard_data(request):
                 'strong_sell': latest_run.analyst_strong_sell
             },
             'market_breadth': {
-                'score': round(latest_run.technical_composite_score * 0.3, 2) if latest_run.technical_composite_score is not None else 0,  # Basic market breadth using technical indicators
+                'score': sanitize_float(round(latest_run.technical_composite_score * 0.3, 2) if latest_run.technical_composite_score is not None else 0),  # Basic market breadth using technical indicators
                 'weight': 0,  # Not included in composite score yet
                 'label': 'Market Breadth',
                 'description': 'Based on technical indicators and market momentum'
@@ -236,34 +247,34 @@ def dashboard_data(request):
         for run in historical_runs:
             historical_data.append({
                 'timestamp': run.timestamp.isoformat(),
-                'composite_score': round(run.composite_score, 2),
-                'stock_price': float(run.stock_price) if run.stock_price else None,
-                'news_score': round(run.avg_base_sentiment * 100, 2) if run.avg_base_sentiment else 0,
-                'social_score': round(run.reddit_sentiment, 2) if run.reddit_sentiment else 0,
-                'technical_score': round(run.technical_composite_score, 2) if run.technical_composite_score else 0
+                'composite_score': sanitize_float(round(run.composite_score, 2)),
+                'stock_price': sanitize_float(float(run.stock_price) if run.stock_price else None),
+                'news_score': sanitize_float(round(run.avg_base_sentiment * 100, 2) if run.avg_base_sentiment else 0),
+                'social_score': sanitize_float(round(run.reddit_sentiment, 2) if run.reddit_sentiment else 0),
+                'technical_score': sanitize_float(round(run.technical_composite_score, 2) if run.technical_composite_score else 0)
             })
 
         # Get market status
         market_status_info = get_market_status()
 
         return Response({
-            'composite_score': round(latest_run.composite_score, 2),
+            'composite_score': sanitize_float(round(latest_run.composite_score, 2)),
             'sentiment_label': latest_run.sentiment_label,
             'timestamp': latest_run.timestamp.isoformat(),
-            'price': float(latest_run.stock_price) if latest_run.stock_price else None,
-            'price_change': round(latest_run.price_change_percent, 2) if latest_run.price_change_percent else 0,
+            'price': sanitize_float(float(latest_run.stock_price) if latest_run.stock_price else None),
+            'price_change': sanitize_float(round(latest_run.price_change_percent, 2) if latest_run.price_change_percent else 0),
             'drivers': drivers,
             'historical': historical_data,
             'technical_indicators': {
-                'rsi_14': latest_run.rsi_14,
-                'macd': latest_run.macd,
-                'macd_signal': latest_run.macd_signal,
-                'bb_upper': latest_run.bb_upper,
-                'bb_middle': latest_run.bb_middle,
-                'bb_lower': latest_run.bb_lower
+                'rsi_14': sanitize_float(latest_run.rsi_14),
+                'macd': sanitize_float(latest_run.macd),
+                'macd_signal': sanitize_float(latest_run.macd_signal),
+                'bb_upper': sanitize_float(latest_run.bb_upper),
+                'bb_middle': sanitize_float(latest_run.bb_middle),
+                'bb_lower': sanitize_float(latest_run.bb_lower)
             },
             'current_score': {
-                'analyst_recommendations_score': round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else None,
+                'analyst_recommendations_score': sanitize_float(round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else None),
                 'analyst_recommendations_count': latest_run.analyst_recommendations_count,
                 'analyst_strong_buy': latest_run.analyst_strong_buy,
                 'analyst_buy': latest_run.analyst_buy,
