@@ -19,10 +19,22 @@ python manage.py collectstatic --noinput --clear
   echo "🔄 Starting sentiment analysis loop (every 60 seconds)..."
   sleep 10  # Wait for Gunicorn to fully start
   while true; do
+    START_TIME=$(date +%s)
+    
     echo "⏰ [$(date '+%Y-%m-%d %H:%M:%S')] Running NASDAQ sentiment analysis..."
     python manage.py run_nasdaq_sentiment --once || echo "❌ Analysis failed, will retry in 60s"
-    echo "✅ Analysis complete. Sleeping for 60 seconds..."
-    sleep 60
+    
+    END_TIME=$(date +%s)
+    ELAPSED=$((END_TIME - START_TIME))
+    SLEEP_TIME=$((60 - ELAPSED))
+    
+    # Safety check: if analysis took longer than 60s, don't sleep
+    if [ $SLEEP_TIME -lt 0 ]; then
+      SLEEP_TIME=0
+    fi
+    
+    echo "✅ Analysis took ${ELAPSED}s. Sleeping for ${SLEEP_TIME}s..."
+    sleep $SLEEP_TIME
   done
 ) &
 
