@@ -3,7 +3,7 @@
 
 set -e  # Exit on error
 
-# Activate the virtual environment
+# Activate the virtual environment (CRITICAL - without this, python command won't be found)
 source /opt/venv/bin/activate
 
 # Add GCC and zlib library paths for numpy/pandas C extensions
