@@ -3,6 +3,9 @@
 
 set -e  # Exit on error
 
+# Activate the virtual environment
+source /opt/venv/bin/activate
+
 # Add GCC and zlib library paths for numpy/pandas C extensions
 GCC_LIB=$(find /nix/store -name "libstdc++.so.6" -path "*-gcc-*-lib/lib/*" 2>/dev/null | head -1 | xargs dirname)
 ZLIB_LIB=$(find /nix/store -name "libz.so.1" 2>/dev/null | head -1 | xargs dirname)
