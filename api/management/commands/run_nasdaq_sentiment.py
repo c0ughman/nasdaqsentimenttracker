@@ -7,6 +7,7 @@ Run with: python manage.py run_nasdaq_sentiment
 import os
 import time
 import hashlib
+import math
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.core.management.base import BaseCommand
@@ -220,6 +221,32 @@ def calculate_recency_weight(published_timestamp):
         return max(0, min(1.0, decay_factor))
     except:
         return 0.5
+
+
+def sanitize_nan(value, default=0.0):
+    """
+    Sanitize NaN and Inf values to prevent database storage issues.
+    Converts NaN/Inf to the specified default value (usually 0).
+
+    Args:
+        value: The value to sanitize
+        default: Default value to use if NaN/Inf detected (default: 0.0)
+
+    Returns:
+        Sanitized value (original if valid, default if NaN/Inf/None)
+    """
+    if value is None:
+        return default
+
+    try:
+        float_value = float(value)
+        # Check for NaN or Infinity
+        if math.isnan(float_value) or math.isinf(float_value):
+            print(f"  ⚠️ Detected NaN/Inf value, converting to {default}")
+            return default
+        return value
+    except (TypeError, ValueError):
+        return default
 
 
 # ============================================================================

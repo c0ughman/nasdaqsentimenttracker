@@ -179,20 +179,30 @@ def dashboard_data(request):
 
         # Helper function to safely convert values
         def safe_float(value, default=None):
-            """Safely convert value to float, return default if None or invalid"""
+            """Safely convert value to float, return default if None or invalid (including NaN)"""
+            import math
             if value is None:
                 return default
             try:
-                return float(value)
+                result = float(value)
+                # Check for NaN or Infinity
+                if math.isnan(result) or math.isinf(result):
+                    return default
+                return result
             except (TypeError, ValueError):
                 return default
 
         def safe_round(value, decimals=2, default=0):
-            """Safely round a value, return default if None or invalid"""
+            """Safely round a value, return default if None or invalid (including NaN)"""
+            import math
             if value is None:
                 return default
             try:
-                return round(float(value), decimals)
+                result = float(value)
+                # Check for NaN or Infinity
+                if math.isnan(result) or math.isinf(result):
+                    return default
+                return round(result, decimals)
             except (TypeError, ValueError):
                 return default
 

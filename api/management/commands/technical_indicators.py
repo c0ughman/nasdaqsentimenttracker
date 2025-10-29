@@ -445,19 +445,23 @@ def calculate_technical_composite_score(indicators):
     if rsi is not None:
         try:
             rsi_val = float(rsi)
-            if rsi_val < 30:
-                rsi_score = 100 * (30 - rsi_val) / 30
-                print(f"   RSI = {rsi_val:.2f} (OVERSOLD - Bullish)")
-            elif rsi_val > 70:
-                rsi_score = -100 * (rsi_val - 70) / 30
-                print(f"   RSI = {rsi_val:.2f} (OVERBOUGHT - Bearish)")
+            # Check for NaN or infinity
+            if np.isnan(rsi_val) or np.isinf(rsi_val):
+                print(f"   ⚠️ RSI is NaN or Inf - skipping")
             else:
-                rsi_score = ((rsi_val - 50) / 20) * 20
-                print(f"   RSI = {rsi_val:.2f} (NEUTRAL)")
+                if rsi_val < 30:
+                    rsi_score = 100 * (30 - rsi_val) / 30
+                    print(f"   RSI = {rsi_val:.2f} (OVERSOLD - Bullish)")
+                elif rsi_val > 70:
+                    rsi_score = -100 * (rsi_val - 70) / 30
+                    print(f"   RSI = {rsi_val:.2f} (OVERBOUGHT - Bearish)")
+                else:
+                    rsi_score = ((rsi_val - 50) / 20) * 20
+                    print(f"   RSI = {rsi_val:.2f} (NEUTRAL)")
 
-            scores.append(rsi_score)
-            weights.append(0.30)
-            print(f"   ✓ RSI Score: {rsi_score:+.2f} (weight: 30%)")
+                scores.append(rsi_score)
+                weights.append(0.30)
+                print(f"   ✓ RSI Score: {rsi_score:+.2f} (weight: 30%)")
         except Exception as e:
             print(f"   ✗ ERROR calculating RSI score: {e}")
     else:
