@@ -9,4 +9,5 @@ urlpatterns = [
     path('nasdaq/composite-score/', views.nasdaq_composite_score, name='nasdaq_composite_score'),
     path('nasdaq/historical-data/', views.nasdaq_historical_data, name='nasdaq_historical_data'),
     path('dashboard/', views.dashboard_data, name='dashboard_data'),  # New endpoint for nasdaq.html
+    path('news/', views.news_articles, name='news_articles'),  # News articles endpoint for frontend
 ]

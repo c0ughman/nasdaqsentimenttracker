@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from .models import Ticker, AnalysisRun, NewsArticle, TickerContribution
 from .serializers import AnalysisRunSerializer, TickerSerializer, TickerContributionSerializer
 from api.utils.market_hours import get_market_status
@@ -176,46 +177,65 @@ def dashboard_data(request):
                 'message': 'No composite sentiment data found. Run analysis first.'
             }, status=status.HTTP_404_NOT_FOUND)
 
+        # Helper function to safely convert values
+        def safe_float(value, default=None):
+            """Safely convert value to float, return default if None or invalid"""
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def safe_round(value, decimals=2, default=0):
+            """Safely round a value, return default if None or invalid"""
+            if value is None:
+                return default
+            try:
+                return round(float(value), decimals)
+            except (TypeError, ValueError):
+                return default
+
         # Calculate news composite (from company + market news)
         # The old composite was 70% company + 30% market
         # To extract just the news part from stored data, we use avg_base_sentiment * 100
-        news_sentiment_raw = latest_run.avg_base_sentiment * 100 if latest_run.avg_base_sentiment else 0
+        news_sentiment_raw = (latest_run.avg_base_sentiment * 100) if (latest_run.avg_base_sentiment is not None) else 0
 
         # Four sentiment drivers with optimized weights for market prediction
         drivers = {
             'news_sentiment': {
-                'score': round(news_sentiment_raw, 2),
+                'score': safe_round(news_sentiment_raw, 2),
                 'weight': 35,  # Most impactful for immediate market reactions
                 'label': 'News Sentiment',
-                'articles_count': latest_run.articles_analyzed
+                'articles_count': latest_run.articles_analyzed or 0
             },
             'social_media': {
-                'score': round(latest_run.reddit_sentiment, 2) if latest_run.reddit_sentiment is not None else 0,
+                'score': safe_round(latest_run.reddit_sentiment, 2),
                 'weight': 20,  # Retail sentiment and momentum indicator
                 'label': 'Social Media',
-                'posts_count': latest_run.reddit_posts_analyzed,
-                'comments_count': latest_run.reddit_comments_analyzed
+                'posts_count': latest_run.reddit_posts_analyzed or 0,
+                'comments_count': latest_run.reddit_comments_analyzed or 0
             },
             'technical_indicators': {
-                'score': round(latest_run.technical_composite_score, 2) if latest_run.technical_composite_score is not None else 0,
+                'score': safe_round(latest_run.technical_composite_score, 2),
                 'weight': 25,  # Price action and momentum signals
                 'label': 'Technical Indicators',
-                'rsi': latest_run.rsi_14,
-                'macd': latest_run.macd
+                'rsi': safe_float(latest_run.rsi_14),
+                'macd': safe_float(latest_run.macd)
             },
             'analyst_recommendations': {
-                'score': round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else 0,
+                'score': safe_round(latest_run.analyst_recommendations_score, 2),
                 'weight': 20,  # Professional institutional outlook
                 'label': 'Analyst Recommendations',
-                'recommendations_count': latest_run.analyst_recommendations_count,
-                'strong_buy': latest_run.analyst_strong_buy,
-                'buy': latest_run.analyst_buy,
-                'hold': latest_run.analyst_hold,
-                'sell': latest_run.analyst_sell,
-                'strong_sell': latest_run.analyst_strong_sell
+                'recommendations_count': latest_run.analyst_recommendations_count or 0,
+                'strong_buy': latest_run.analyst_strong_buy or 0,
+                'buy': latest_run.analyst_buy or 0,
+                'hold': latest_run.analyst_hold or 0,
+                'sell': latest_run.analyst_sell or 0,
+                'strong_sell': latest_run.analyst_strong_sell or 0
             },
             'market_breadth': {
-                'score': round(latest_run.technical_composite_score * 0.3, 2) if latest_run.technical_composite_score is not None else 0,  # Basic market breadth using technical indicators
+                'score': safe_round(latest_run.technical_composite_score * 0.3, 2) if latest_run.technical_composite_score is not None else 0,
                 'weight': 0,  # Not included in composite score yet
                 'label': 'Market Breadth',
                 'description': 'Based on technical indicators and market momentum'
@@ -234,42 +254,62 @@ def dashboard_data(request):
 
         historical_data = []
         for run in historical_runs:
+            # Safely handle timestamp conversion
+            try:
+                timestamp_str = run.timestamp.isoformat() if run.timestamp else None
+            except (AttributeError, TypeError):
+                timestamp_str = None
+
             historical_data.append({
-                'timestamp': run.timestamp.isoformat(),
-                'composite_score': round(run.composite_score, 2),
-                'stock_price': float(run.stock_price) if run.stock_price else None,
-                'news_score': round(run.avg_base_sentiment * 100, 2) if run.avg_base_sentiment else 0,
-                'social_score': round(run.reddit_sentiment, 2) if run.reddit_sentiment else 0,
-                'technical_score': round(run.technical_composite_score, 2) if run.technical_composite_score else 0
+                'timestamp': timestamp_str,
+                'composite_score': safe_round(run.composite_score, 2, 0),
+                'stock_price': safe_float(run.stock_price),
+                'news_score': safe_round((run.avg_base_sentiment * 100) if (run.avg_base_sentiment is not None) else None, 2),
+                'social_score': safe_round(run.reddit_sentiment, 2),
+                'technical_score': safe_round(run.technical_composite_score, 2)
             })
 
-        # Get market status
-        market_status_info = get_market_status()
+        # Get market status with error handling
+        try:
+            market_status_info = get_market_status()
+        except Exception as e:
+            # Fallback market status if utility fails
+            market_status_info = {
+                'is_open': False,
+                'reason': 'Unable to determine market status',
+                'current_time_ct': timezone.now().strftime('%Y-%m-%d %I:%M:%S %p %Z'),
+            }
+
+        # Safely handle timestamp for latest run
+        try:
+            timestamp_str = latest_run.timestamp.isoformat() if latest_run.timestamp else None
+        except (AttributeError, TypeError):
+            timestamp_str = None
 
         return Response({
-            'composite_score': round(latest_run.composite_score, 2),
-            'sentiment_label': latest_run.sentiment_label,
-            'timestamp': latest_run.timestamp.isoformat(),
-            'price': float(latest_run.stock_price) if latest_run.stock_price else None,
-            'price_change': round(latest_run.price_change_percent, 2) if latest_run.price_change_percent else 0,
+            'composite_score': safe_round(latest_run.composite_score, 2, 0),
+            'sentiment_label': latest_run.sentiment_label or 'NEUTRAL',
+            'timestamp': timestamp_str,
+            'price': safe_float(latest_run.stock_price),
+            'price_change': safe_round(latest_run.price_change_percent, 2),
             'drivers': drivers,
             'historical': historical_data,
             'technical_indicators': {
-                'rsi_14': latest_run.rsi_14,
-                'macd': latest_run.macd,
-                'macd_signal': latest_run.macd_signal,
-                'bb_upper': float(latest_run.bb_upper) if latest_run.bb_upper else None,
-                'bb_middle': float(latest_run.bb_middle) if latest_run.bb_middle else None,
-                'bb_lower': float(latest_run.bb_lower) if latest_run.bb_lower else None
+                'rsi_14': safe_float(latest_run.rsi_14),
+                'macd': safe_float(latest_run.macd),
+                'macd_signal': safe_float(latest_run.macd_signal),
+                'bb_upper': safe_float(latest_run.bb_upper),
+                'bb_middle': safe_float(latest_run.bb_middle),
+                'bb_lower': safe_float(latest_run.bb_lower)
             },
             'current_score': {
-                'analyst_recommendations_score': round(latest_run.analyst_recommendations_score, 2) if latest_run.analyst_recommendations_score is not None else None,
-                'analyst_recommendations_count': latest_run.analyst_recommendations_count,
-                'analyst_strong_buy': latest_run.analyst_strong_buy,
-                'analyst_buy': latest_run.analyst_buy,
-                'analyst_hold': latest_run.analyst_hold,
-                'analyst_sell': latest_run.analyst_sell,
-                'analyst_strong_sell': latest_run.analyst_strong_sell
+                'analyst_recommendations_score': safe_round(latest_run.analyst_recommendations_score, 2),
+                'analyst_recommendations_count': latest_run.analyst_recommendations_count or 0,
+                'analyst_strong_buy': latest_run.analyst_strong_buy or 0,
+                'analyst_buy': latest_run.analyst_buy or 0,
+                'analyst_hold': latest_run.analyst_hold or 0,
+                'analyst_sell': latest_run.analyst_sell or 0,
+                'analyst_strong_sell': latest_run.analyst_strong_sell or 0
             },
             'market_status': market_status_info
         }, status=status.HTTP_200_OK)
@@ -279,6 +319,99 @@ def dashboard_data(request):
             'error': 'NASDAQ ticker not found',
             'message': 'NASDAQ composite index ticker (^IXIC) not found in database'
         }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        # Catch all other exceptions and log them
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error in dashboard_data endpoint: {str(e)}', exc_info=True)
+        
+        return Response({
+            'error': 'Internal server error',
+            'message': 'An error occurred while fetching dashboard data. Please try again later.',
+            'detail': str(e) if settings.DEBUG else None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def news_articles(request):
+    """
+    Get news articles from the last 24 hours
+    Returns articles with sentiment analysis for the frontend news display
+    """
+    try:
+        from django.utils import timezone
+        from datetime import timedelta
+
+        # Get articles from the last 24 hours
+        cutoff_time = timezone.now() - timedelta(hours=24)
+        
+        # Fetch all news articles from the last day, ordered by most recent first
+        articles = NewsArticle.objects.filter(
+            published_at__gte=cutoff_time
+        ).select_related('ticker').order_by('-published_at')
+
+        # Helper function to convert sentiment score to label
+        def get_sentiment_label(base_sentiment):
+            """Convert base_sentiment (-1 to 1) to 'positive', 'negative', or 'neutral'"""
+            if base_sentiment is None:
+                return 'neutral'
+            
+            # Use thresholds: positive > 0.1, negative < -0.1, else neutral
+            if base_sentiment > 0.1:
+                return 'positive'
+            elif base_sentiment < -0.1:
+                return 'negative'
+            else:
+                return 'neutral'
+
+        # Helper function to safely format datetime
+        def safe_isoformat(dt):
+            """Safely convert datetime to ISO format string"""
+            if dt is None:
+                return None
+            try:
+                # Datetimes from Django ORM should be timezone-aware
+                # Just call isoformat() which handles both aware and naive datetimes
+                return dt.isoformat()
+            except (AttributeError, TypeError, ValueError):
+                return None
+
+        # Convert articles to the expected format
+        articles_data = []
+        for article in articles:
+            # Use base_sentiment for sentiment_score, or article_score as fallback
+            sentiment_score = float(article.base_sentiment) if article.base_sentiment is not None else (
+                float(article.article_score) if article.article_score is not None else 0.0
+            )
+            
+            articles_data.append({
+                'title': article.headline,
+                'summary': article.summary if article.summary else '',
+                'source': article.source,
+                'published_at': safe_isoformat(article.published_at),
+                'url': article.url if article.url else '',
+                'sentiment': get_sentiment_label(article.base_sentiment),
+                'sentiment_score': round(sentiment_score, 3)
+            })
+
+        return Response({
+            'articles': articles_data,
+            'count': len(articles_data),
+            'timeframe': 'last_24_hours'
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        # Catch all exceptions and log them
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error in news_articles endpoint: {str(e)}', exc_info=True)
+        
+        return Response({
+            'error': 'Internal server error',
+            'message': 'An error occurred while fetching news articles. Please try again later.',
+            'detail': str(e) if settings.DEBUG else None,
+            'articles': []
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
