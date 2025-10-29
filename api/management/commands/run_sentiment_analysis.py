@@ -6,12 +6,12 @@ Run with: python manage.py run_sentiment_analysis
 import os
 import time
 import hashlib
-import json
 from datetime import datetime, timedelta
 from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Avg, Min, Max, Count
+from django.db.models import Avg, Min, Max, Count, Sum
+from django.db import transaction
 import requests
 import finnhub
 from dotenv import load_dotenv
@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '.env'))
 
 # Import models
-from api.models import Ticker, SentimentScore, StockPrice, NewsArticle, SentimentHistory
+from api.models import Ticker, AnalysisRun, NewsArticle, SentimentHistory
 
 # ============================================================================
 # CONFIGURATION
@@ -28,7 +28,6 @@ from api.models import Ticker, SentimentScore, StockPrice, NewsArticle, Sentimen
 
 FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY', '')
 HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY', '')
-UPDATE_INTERVAL_SECONDS = 60  # Run every minute
 
 # Weights for composite score
 WEIGHTS = {
@@ -58,18 +57,13 @@ SOURCE_CREDIBILITY = {
 seen_articles = set()
 
 # ============================================================================
-# DATABASE HELPERS
+# HELPER FUNCTIONS
 # ============================================================================
 
-def get_or_create_ticker(symbol, company_name=""):
-    """Get or create ticker in database"""
-    ticker, created = Ticker.objects.get_or_create(
-        symbol=symbol.upper(),
-        defaults={'company_name': company_name}
-    )
-    if created:
-        print(f"✨ Created new ticker: {symbol}")
-    return ticker
+def get_article_hash(headline, summary):
+    """Generate unique hash for article deduplication"""
+    content = f"{headline}{summary}".lower()
+    return hashlib.md5(content.encode()).hexdigest()
 
 
 def get_cached_sentiment_from_db(article_hash):
@@ -83,145 +77,10 @@ def get_cached_sentiment_from_db(article_hash):
     return None
 
 
-def save_news_article_to_db(ticker, article_data, sentiment_data):
-    """Save news article and sentiment to database"""
-    try:
-        article_obj, created = NewsArticle.objects.update_or_create(
-            article_hash=sentiment_data['article_hash'],
-            defaults={
-                'ticker': ticker,
-                'headline': article_data.get('headline', ''),
-                'summary': article_data.get('summary', ''),
-                'source': article_data.get('source', 'Unknown'),
-                'url': article_data.get('url', ''),
-                'published_at': datetime.fromtimestamp(article_data.get('datetime', 0)),
-                'base_sentiment': sentiment_data['base_sentiment'],
-                'surprise_factor': sentiment_data['surprise_factor'],
-                'novelty_score': sentiment_data['novelty'],
-                'source_credibility': sentiment_data['source_credibility'],
-                'recency_weight': sentiment_data['recency'],
-                'article_score': sentiment_data['article_score'],
-                'weighted_contribution': sentiment_data['weighted_contribution'],
-                'is_analyzed': True,
-                'sentiment_cached': sentiment_data['was_cached'],
-            }
-        )
-        return article_obj
-    except Exception as e:
-        print(f"⚠️ Error saving article to database: {e}")
-        return None
-
-
-def save_sentiment_score_to_db(ticker, score, stats):
-    """Save sentiment score to database"""
-    try:
-        sentiment = SentimentScore.objects.create(
-            ticker=ticker,
-            score=score,
-            articles_analyzed=stats['total_articles'],
-            cached_articles=stats['cached'],
-            new_articles=stats['new']
-        )
-        print(f"💾 Saved sentiment score to database: {score:.2f}")
-        return sentiment
-    except Exception as e:
-        print(f"⚠️ Error saving sentiment score: {e}")
-        return None
-
-
-def fetch_and_save_stock_price(finnhub_client, ticker):
-    """Fetch current stock price and save to database"""
-    try:
-        # Get real-time quote from Finnhub
-        quote = finnhub_client.quote(ticker.symbol)
-        
-        if quote and quote.get('c'):  # 'c' is current price
-            price_obj = StockPrice.objects.create(
-                ticker=ticker,
-                price=Decimal(str(quote.get('c', 0))),
-                open_price=Decimal(str(quote.get('o', 0))) if quote.get('o') else None,
-                high_price=Decimal(str(quote.get('h', 0))) if quote.get('h') else None,
-                low_price=Decimal(str(quote.get('l', 0))) if quote.get('l') else None,
-                change_percent=float(quote.get('dp', 0)) if quote.get('dp') else None,
-            )
-            print(f"💰 Stock price saved: ${price_obj.price} (Change: {price_obj.change_percent:.2f}%)")
-            return price_obj
-        else:
-            print(f"⚠️ No price data available for {ticker.symbol}")
-            return None
-    except Exception as e:
-        print(f"⚠️ Error fetching stock price: {e}")
-        return None
-
-
-def update_sentiment_history(ticker):
-    """Update daily sentiment history aggregate"""
-    try:
-        today = timezone.now().date()
-        
-        # Get today's sentiment scores
-        today_scores = SentimentScore.objects.filter(
-            ticker=ticker,
-            timestamp__date=today
-        )
-        
-        if not today_scores.exists():
-            return
-        
-        # Calculate aggregates
-        aggregates = today_scores.aggregate(
-            avg=Avg('score'),
-            min=Min('score'),
-            max=Max('score'),
-            total=Count('id')
-        )
-        
-        # Get latest stock price for today
-        latest_price = StockPrice.objects.filter(
-            ticker=ticker,
-            timestamp__date=today
-        ).order_by('-timestamp').first()
-        
-        # Update or create history entry
-        history, created = SentimentHistory.objects.update_or_create(
-            ticker=ticker,
-            date=today,
-            defaults={
-                'avg_sentiment': aggregates['avg'],
-                'min_sentiment': aggregates['min'],
-                'max_sentiment': aggregates['max'],
-                'total_articles': today_scores.last().articles_analyzed if today_scores.last() else 0,
-                'closing_price': latest_price.price if latest_price else None,
-                'price_change_percent': float(latest_price.change_percent) if latest_price and latest_price.change_percent else None,
-            }
-        )
-        
-        action = "Created" if created else "Updated"
-        print(f"📊 {action} sentiment history for {today}")
-        
-    except Exception as e:
-        print(f"⚠️ Error updating sentiment history: {e}")
-
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def get_article_hash(headline, summary):
-    """Generate unique hash for article deduplication"""
-    content = f"{headline}{summary}".lower()
-    return hashlib.md5(content.encode()).hexdigest()
-
-
 def analyze_sentiment_finbert_api(text):
-    """
-    Analyze sentiment using FinBERT via HuggingFace API
-    Returns: float between -1 (negative) and +1 (positive)
-    """
+    """Analyze sentiment using FinBERT via HuggingFace API"""
     API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
-    
-    # Truncate text to reasonable length
     text = text[:512]
     
     try:
@@ -229,8 +88,6 @@ def analyze_sentiment_finbert_api(text):
         
         if response.status_code == 200:
             result = response.json()
-            
-            # HuggingFace returns array of label/score pairs
             sentiment_map = {'positive': 0, 'negative': 0, 'neutral': 0}
             
             for item in result[0]:
@@ -238,12 +95,10 @@ def analyze_sentiment_finbert_api(text):
                 score = item['score']
                 sentiment_map[label] = score
             
-            # Convert to -1 to +1 scale
             sentiment_score = sentiment_map['positive'] - sentiment_map['negative']
             return sentiment_score
             
         elif response.status_code == 503:
-            # Model is loading, wait and retry
             print("  ⏳ Model loading, retrying in 20 seconds...")
             time.sleep(20)
             return analyze_sentiment_finbert_api(text)
@@ -257,39 +112,24 @@ def analyze_sentiment_finbert_api(text):
 
 
 def calculate_surprise_factor(text):
-    """
-    Detect if news is surprising/unexpected
-    Returns: multiplier between 0.3 and 2.0
-    """
+    """Detect if news is surprising/unexpected"""
     text_lower = text.lower()
     
     surprise_keywords = {
-        'unexpected': 1.5,
-        'surprise': 1.5,
-        'beats expectations': 1.8,
-        'misses estimates': 1.8,
-        'exceeds expectations': 1.8,
-        'shock': 2.0,
-        'unprecedented': 1.7,
-        'sudden': 1.4,
-        'abrupt': 1.4,
-        'breaking': 1.3
+        'unexpected': 1.5, 'surprise': 1.5, 'beats expectations': 1.8,
+        'misses estimates': 1.8, 'exceeds expectations': 1.8, 'shock': 2.0,
+        'unprecedented': 1.7, 'sudden': 1.4, 'abrupt': 1.4, 'breaking': 1.3
     }
     
     expected_keywords = {
-        'as expected': 0.4,
-        'in line with': 0.4,
-        'anticipated': 0.5,
-        'scheduled': 0.6,
-        'planned': 0.6
+        'as expected': 0.4, 'in line with': 0.4, 'anticipated': 0.5,
+        'scheduled': 0.6, 'planned': 0.6
     }
     
     multiplier = 1.0
-    
     for keyword, weight in surprise_keywords.items():
         if keyword in text_lower:
             multiplier = max(multiplier, weight)
-    
     for keyword, weight in expected_keywords.items():
         if keyword in text_lower:
             multiplier = min(multiplier, weight)
@@ -298,41 +138,27 @@ def calculate_surprise_factor(text):
 
 
 def calculate_novelty(article_hash):
-    """
-    Check if article is novel or duplicate
-    Returns: score between 0.2 and 1.0
-    """
+    """Check if article is novel or duplicate"""
     if article_hash in seen_articles:
         return 0.2
-    
     seen_articles.add(article_hash)
     return 1.0
 
 
 def get_source_credibility(source):
-    """
-    Get credibility weight for news source
-    Returns: weight between 0.4 and 1.0
-    """
+    """Get credibility weight for news source"""
     for known_source, weight in SOURCE_CREDIBILITY.items():
         if known_source.lower() in source.lower():
             return weight
-    
     return 0.5
 
 
 def calculate_recency_weight(published_timestamp):
-    """
-    Calculate weight based on how recent the article is
-    Returns: weight between 0 and 1.0
-    """
+    """Calculate weight based on how recent the article is"""
     try:
         published_time = datetime.fromtimestamp(published_timestamp)
         hours_old = (datetime.now() - published_time).total_seconds() / 3600
-        
-        # Exponential decay with 6-hour half-life
         decay_factor = 2 ** (-hours_old / 6)
-        
         return max(0, min(1.0, decay_factor))
     except:
         return 0.5
@@ -354,28 +180,67 @@ def fetch_news(finnhub_client, ticker_symbol, lookback_hours=24):
         return []
 
 
-def calculate_composite_sentiment_score(finnhub_client, ticker):
+def fetch_stock_price(finnhub_client, ticker_symbol):
+    """Fetch current stock price from Finnhub"""
+    try:
+        quote = finnhub_client.quote(ticker_symbol)
+        if quote and quote.get('c'):
+            return {
+                'price': Decimal(str(quote.get('c', 0))),
+                'open': Decimal(str(quote.get('o', 0))) if quote.get('o') else None,
+                'high': Decimal(str(quote.get('h', 0))) if quote.get('h') else None,
+                'low': Decimal(str(quote.get('l', 0))) if quote.get('l') else None,
+                'change_percent': float(quote.get('dp', 0)) if quote.get('dp') else None,
+            }
+        return None
+    except Exception as e:
+        print(f"⚠️ Error fetching stock price: {e}")
+        return None
+
+
+def run_complete_analysis(finnhub_client, ticker):
     """
-    Main function to calculate composite sentiment score
-    Returns: score from -100 to +100
+    MAIN FUNCTION: Run complete analysis and save everything to AnalysisRun
+    Returns the saved AnalysisRun object
     """
     print(f"\n{'='*60}")
-    print(f"📊 Calculating sentiment score for {ticker.symbol}")
+    print(f"📊 Running Complete Analysis for {ticker.symbol}")
     print(f"🕐 Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}\n")
     
+    # Step 1: Fetch stock price
+    print("💰 Fetching stock price...")
+    stock_data = fetch_stock_price(finnhub_client, ticker.symbol)
+    if not stock_data:
+        print("⚠️ Could not fetch stock price")
+        return None
+    print(f"   Current Price: ${stock_data['price']}")
+    if stock_data['change_percent']:
+        print(f"   Change: {stock_data['change_percent']:.2f}%")
+    
+    # Step 2: Fetch news articles
+    print("\n📰 Fetching news articles...")
     articles = fetch_news(finnhub_client, ticker.symbol, lookback_hours=24)
     
     if not articles:
         print("ℹ️  No articles found in the last 24 hours.")
-        return 0, {'total_articles': 0, 'cached': 0, 'new': 0}
+        return None
     
-    print(f"📰 Found {len(articles)} articles\n")
+    print(f"   Found {len(articles)} articles\n")
     
+    # Step 3: Analyze each article and collect data
+    article_data_list = []
     weighted_scores = []
     total_weight = 0
     new_articles_count = 0
     cached_articles_count = 0
+    
+    # Component score accumulators
+    base_sentiments = []
+    surprise_factors = []
+    novelties = []
+    credibilities = []
+    recencies = []
     
     for idx, article in enumerate(articles):
         headline = article.get('headline', '')
@@ -393,18 +258,16 @@ def calculate_composite_sentiment_score(finnhub_client, ticker):
         print(f"   Source: {source}")
         print(f"   Headline: {headline[:70]}...")
         
-        # Check if we have cached sentiment in database
+        # Check cache
         cached_sentiment = get_cached_sentiment_from_db(article_hash)
         was_cached = False
         
         if cached_sentiment is not None:
-            # Use cached sentiment score
             base_sentiment = cached_sentiment
             cached_articles_count += 1
             was_cached = True
-            print(f"   💭 Base Sentiment (DB CACHED): {base_sentiment:.3f} 🚀")
+            print(f"   💭 Base Sentiment (CACHED): {base_sentiment:.3f} 🚀")
         else:
-            # Analyze sentiment with FinBERT
             base_sentiment = analyze_sentiment_finbert_api(full_text)
             new_articles_count += 1
             print(f"   💭 Base Sentiment (NEW): {base_sentiment:.3f}")
@@ -423,38 +286,42 @@ def calculate_composite_sentiment_score(finnhub_client, ticker):
         print(f"   ⏱️  Recency Weight: {recency:.2f}")
         
         # Combine factors
-        article_score = (
-            base_sentiment * WEIGHTS['base_sentiment']
-        ) * surprise_multiplier
-        
+        article_score = (base_sentiment * WEIGHTS['base_sentiment']) * surprise_multiplier
         article_weight = (
             novelty * WEIGHTS['novelty'] +
             source_cred * WEIGHTS['source_credibility'] +
             recency * WEIGHTS['recency']
         )
-        
         weighted_score = article_score * article_weight
+        
         print(f"   → Article Score: {article_score:.3f}")
         print(f"   → Weighted Contribution: {weighted_score:.3f}\n")
         
-        # Save article to database
-        sentiment_data = {
+        # Accumulate component scores
+        base_sentiments.append(base_sentiment)
+        surprise_factors.append(surprise_multiplier)
+        novelties.append(novelty)
+        credibilities.append(source_cred)
+        recencies.append(recency)
+        
+        weighted_scores.append(weighted_score)
+        total_weight += article_weight
+        
+        # Store article data for saving
+        article_data_list.append({
+            'article': article,
             'article_hash': article_hash,
             'base_sentiment': base_sentiment,
             'surprise_factor': surprise_multiplier,
             'novelty': novelty,
-            'source_credibility': source_cred,
+            'source_cred': source_cred,
             'recency': recency,
             'article_score': article_score,
             'weighted_contribution': weighted_score,
             'was_cached': was_cached
-        }
-        save_news_article_to_db(ticker, article, sentiment_data)
-        
-        weighted_scores.append(weighted_score)
-        total_weight += article_weight
+        })
     
-    # Calculate final score
+    # Step 4: Calculate final composite score
     if total_weight == 0:
         final_score = 0
     else:
@@ -462,18 +329,139 @@ def calculate_composite_sentiment_score(finnhub_client, ticker):
     
     final_score = max(-100, min(100, final_score))
     
-    stats = {
-        'total_articles': len(articles),
-        'cached': cached_articles_count,
-        'new': new_articles_count
-    }
+    # Step 5: Calculate average component scores
+    avg_base_sentiment = sum(base_sentiments) / len(base_sentiments) if base_sentiments else 0
+    avg_surprise = sum(surprise_factors) / len(surprise_factors) if surprise_factors else 1.0
+    avg_novelty = sum(novelties) / len(novelties) if novelties else 1.0
+    avg_credibility = sum(credibilities) / len(credibilities) if credibilities else 0.5
+    avg_recency = sum(recencies) / len(recencies) if recencies else 1.0
     
     print(f"{'='*60}")
     print(f"🎯 COMPOSITE SENTIMENT SCORE: {final_score:.2f}")
-    print(f"📊 Cache Stats: {cached_articles_count} cached, {new_articles_count} new analyses")
+    print(f"📊 Component Averages:")
+    print(f"   Base Sentiment: {avg_base_sentiment:.3f}")
+    print(f"   Surprise Factor: {avg_surprise:.2f}")
+    print(f"   Novelty: {avg_novelty:.2f}")
+    print(f"   Credibility: {avg_credibility:.2f}")
+    print(f"   Recency: {avg_recency:.2f}")
+    print(f"💰 Stock Price: ${stock_data['price']}")
+    print(f"📈 Articles: {len(articles)} ({cached_articles_count} cached, {new_articles_count} new)")
     print(f"{'='*60}\n")
     
-    return final_score, stats
+    # Step 6: Save everything to database in ONE transaction
+    print("💾 Saving to database...")
+    
+    try:
+        with transaction.atomic():
+            # Create the unified AnalysisRun record
+            analysis_run = AnalysisRun.objects.create(
+                ticker=ticker,
+                # Sentiment data
+                composite_score=final_score,
+                avg_base_sentiment=avg_base_sentiment,
+                avg_surprise_factor=avg_surprise,
+                avg_novelty=avg_novelty,
+                avg_source_credibility=avg_credibility,
+                avg_recency_weight=avg_recency,
+                # Stock price data
+                stock_price=stock_data['price'],
+                price_open=stock_data.get('open'),
+                price_high=stock_data.get('high'),
+                price_low=stock_data.get('low'),
+                price_change_percent=stock_data.get('change_percent'),
+                # Metadata
+                articles_analyzed=len(articles),
+                cached_articles=cached_articles_count,
+                new_articles=new_articles_count
+            )
+            
+            print(f"✅ Created AnalysisRun #{analysis_run.id}")
+            
+            # Save all news articles linked to this analysis run
+            for article_data in article_data_list:
+                article = article_data['article']
+                NewsArticle.objects.update_or_create(
+                    article_hash=article_data['article_hash'],
+                    defaults={
+                        'ticker': ticker,
+                        'analysis_run': analysis_run,
+                        'headline': article.get('headline', ''),
+                        'summary': article.get('summary', ''),
+                        'source': article.get('source', 'Unknown'),
+                        'url': article.get('url', ''),
+                        'published_at': datetime.fromtimestamp(article.get('datetime', 0)),
+                        'base_sentiment': article_data['base_sentiment'],
+                        'surprise_factor': article_data['surprise_factor'],
+                        'novelty_score': article_data['novelty'],
+                        'source_credibility': article_data['source_cred'],
+                        'recency_weight': article_data['recency'],
+                        'article_score': article_data['article_score'],
+                        'weighted_contribution': article_data['weighted_contribution'],
+                        'is_analyzed': True,
+                        'sentiment_cached': article_data['was_cached'],
+                    }
+                )
+            
+            print(f"✅ Saved {len(article_data_list)} news articles")
+            
+            # Update sentiment history
+            update_sentiment_history(ticker)
+            
+            print(f"✅ Updated sentiment history")
+            print(f"\n🎉 Analysis complete! Saved as AnalysisRun #{analysis_run.id}")
+            
+            return analysis_run
+            
+    except Exception as e:
+        print(f"❌ Error saving to database: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def update_sentiment_history(ticker):
+    """Update daily sentiment history aggregate"""
+    try:
+        today = timezone.now().date()
+        
+        # Get today's analysis runs
+        today_runs = AnalysisRun.objects.filter(
+            ticker=ticker,
+            timestamp__date=today
+        )
+        
+        if not today_runs.exists():
+            return
+        
+        # Calculate aggregates
+        aggregates = today_runs.aggregate(
+            avg=Avg('composite_score'),
+            min=Min('composite_score'),
+            max=Max('composite_score'),
+            total_analyses=Count('id'),
+            total_articles=Sum('articles_analyzed')
+        )
+        
+        # Get latest stock price for today
+        latest_run = today_runs.order_by('-timestamp').first()
+        
+        # Update or create history entry
+        SentimentHistory.objects.update_or_create(
+            ticker=ticker,
+            date=today,
+            defaults={
+                'avg_sentiment': aggregates['avg'],
+                'min_sentiment': aggregates['min'],
+                'max_sentiment': aggregates['max'],
+                'total_analyses': aggregates['total_analyses'],
+                'total_articles': aggregates.get('total_articles', 0) or 0,
+                'closing_price': latest_run.stock_price if latest_run else None,
+                'price_change_percent': float(latest_run.price_change_percent) if latest_run and latest_run.price_change_percent else None,
+            }
+        )
+        
+    except Exception as e:
+        print(f"⚠️ Error updating sentiment history: {e}")
 
 
 # ============================================================================
@@ -481,7 +469,7 @@ def calculate_composite_sentiment_score(finnhub_client, ticker):
 # ============================================================================
 
 class Command(BaseCommand):
-    help = 'Run continuous sentiment analysis for NASDAQ stocks with database storage'
+    help = 'Run sentiment analysis and save complete results to AnalysisRun table'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -523,29 +511,27 @@ class Command(BaseCommand):
         # Initialize Finnhub client
         finnhub_client = finnhub.Client(api_key=FINNHUB_API_KEY)
         
-        # Get or create ticker in database
-        ticker = get_or_create_ticker(ticker_symbol)
+        # Get or create ticker
+        ticker, created = Ticker.objects.get_or_create(
+            symbol=ticker_symbol,
+            defaults={'company_name': f'{ticker_symbol} Inc.'}
+        )
+        if created:
+            self.stdout.write(f'✨ Created new ticker: {ticker_symbol}')
         
         self.stdout.write(self.style.SUCCESS(
             f'\n🚀 Starting sentiment analysis for {ticker.symbol}'
         ))
-        self.stdout.write(f'💾 All data will be saved to PostgreSQL database\n')
+        self.stdout.write('💾 All data will be saved to AnalysisRun table (unified model)\n')
         
         if run_once:
             # Run once
-            score, stats = calculate_composite_sentiment_score(finnhub_client, ticker)
-            self.interpret_score(score)
-            
-            # Save sentiment score to database
-            save_sentiment_score_to_db(ticker, score, stats)
-            
-            # Fetch and save stock price
-            fetch_and_save_stock_price(finnhub_client, ticker)
-            
-            # Update sentiment history
-            update_sentiment_history(ticker)
-            
-            self.stdout.write(self.style.SUCCESS('\n✅ Analysis complete! Data saved to database.'))
+            analysis_run = run_complete_analysis(finnhub_client, ticker)
+            if analysis_run:
+                self.interpret_score(analysis_run.composite_score)
+                self.stdout.write(self.style.SUCCESS(
+                    f'\n✅ Analysis complete! View at http://localhost:8000/admin/api/analysisrun/{analysis_run.id}/change/'
+                ))
         else:
             # Run continuously
             self.stdout.write(f'⏱️  Update interval: {interval} seconds')
@@ -558,15 +544,9 @@ class Command(BaseCommand):
                     iteration += 1
                     self.stdout.write(f"\n{'>'*20} ITERATION {iteration} {'<'*20}")
                     
-                    score, stats = calculate_composite_sentiment_score(finnhub_client, ticker)
-                    self.interpret_score(score)
-                    
-                    # Save to database
-                    save_sentiment_score_to_db(ticker, score, stats)
-                    fetch_and_save_stock_price(finnhub_client, ticker)
-                    
-                    # Update history every iteration
-                    update_sentiment_history(ticker)
+                    analysis_run = run_complete_analysis(finnhub_client, ticker)
+                    if analysis_run:
+                        self.interpret_score(analysis_run.composite_score)
                     
                     self.stdout.write(f"\n💤 Next update in {interval} seconds...")
                     time.sleep(interval)
