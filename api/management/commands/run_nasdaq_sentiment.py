@@ -937,7 +937,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
                     price_low=new_low,
                     price_change_percent=new_change,
                     volume=new_volume,
-                    avg_base_sentiment=latest_run.avg_base_sentiment,
+                    avg_base_sentiment=news_composite,  # Save the decayed news_composite, not the old one
                     avg_surprise_factor=latest_run.avg_surprise_factor,
                     avg_novelty=latest_run.avg_novelty,
                     avg_source_credibility=latest_run.avg_source_credibility,
@@ -1274,7 +1274,8 @@ def run_nasdaq_composite_analysis(finnhub_client):
         cached_count = sum(1 for a in all_articles if a['is_cached'])
         new_count = total_articles - cached_count
 
-        avg_base_sentiment = sum(a['base_sentiment'] for a in all_articles) / total_articles if total_articles else 0
+        # NOTE: avg_base_sentiment now stores the news_composite score (with decay)
+        # This is the score that will be used for decay calculations in the next run
         avg_surprise = sum(a['surprise_factor'] for a in all_articles) / total_articles if total_articles else 1.0
         # Novelty and recency may be None (feature deprecated); treat None as neutral defaults
         avg_novelty = (
@@ -1291,7 +1292,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
         analysis_run = AnalysisRun.objects.create(
             ticker=nasdaq_ticker,
             composite_score=float(final_composite_score),
-            avg_base_sentiment=avg_base_sentiment,
+            avg_base_sentiment=news_composite,  # Save the actual news_composite (with decay)
             avg_surprise_factor=avg_surprise,
             avg_novelty=avg_novelty,
             avg_source_credibility=avg_credibility,
