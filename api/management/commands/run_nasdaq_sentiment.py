@@ -1005,19 +1005,113 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Continue with full analysis if we have new articles
     print(f"\n🔬 Proceeding with full sentiment analysis...")
     
-    # Step 4: Analyze sentiment for each ticker
-    print(f"\n🔍 PHASE 2: Analyzing company sentiment")
+    # Step 4: Collect ALL articles first (company + market news)
+    print(f"\n🔍 PHASE 2: Collecting all articles for single-batch analysis")
+
+    # Collect company articles (top 10 per ticker)
+    articles_to_process = []  # List of (article, ticker_obj, article_type, symbol) tuples
+    ticker_article_counts = {}  # Track how many articles per ticker
+
+    for symbol, weight in NASDAQ_TOP_20.items():
+        ticker_obj = ticker_objects[symbol]
+        news_articles = company_news_dict.get(symbol, [])
+
+        if news_articles:
+            top_articles = news_articles[:10]
+            for article in top_articles:
+                articles_to_process.append((article, ticker_obj, 'company', symbol))
+            ticker_article_counts[symbol] = len(top_articles)
+            print(f"  {symbol}: {len(top_articles)} articles")
+        else:
+            ticker_article_counts[symbol] = 0
+
+    # Collect market news (top 20 most relevant)
+    market_news = market_news_preview if 'market_news_preview' in locals() else fetch_general_market_news(finnhub_client)
+    market_article_count = 0
+
+    if market_news:
+        top_market_news = market_news[:20]
+        for article in top_market_news:
+            articles_to_process.append((article, nasdaq_ticker, 'market', 'MARKET'))
+        market_article_count = len(top_market_news)
+        print(f"  MARKET: {len(top_market_news)} articles")
+
+    total_articles = len(articles_to_process)
+    print(f"\n📊 Total articles to process: {total_articles}")
+
+    # Step 5: Single-batch analysis for ALL articles
+    print(f"\n🔬 PHASE 3: Analyzing ALL articles in single batch...")
+
+    # Separate cached and uncached articles
+    cached_results = {}  # article_index -> (article, ticker_obj, article_type, symbol, sentiment)
+    uncached_indices = []  # List of indices that need analysis
+    uncached_texts = []  # Corresponding texts for batch API call
+
+    for idx, (article, ticker_obj, article_type, symbol) in enumerate(articles_to_process):
+        headline = article.get('headline', '')
+        summary = article.get('summary', '')
+        article_hash = get_article_hash(headline, summary)
+
+        cached_sentiment = get_cached_sentiment_from_db(article_hash)
+        if cached_sentiment is not None:
+            cached_results[idx] = (article, ticker_obj, article_type, symbol, cached_sentiment)
+        else:
+            uncached_indices.append(idx)
+            uncached_texts.append(f"{headline}. {summary}")
+
+    print(f"  ✓ Cached: {len(cached_results)} | New: {len(uncached_indices)}")
+
+    # Batch analyze all uncached articles in ONE API call
+    new_sentiments = []
+    if uncached_indices:
+        print(f"  🔬 Analyzing {len(uncached_indices)} new articles with FinBERT (single batch)...")
+        new_sentiments = analyze_sentiment_finbert_batch(uncached_texts)
+        print(f"  ✅ Single batch analysis complete!")
+
+    # Step 6: Process results and organize by ticker
+    print(f"\n📈 PHASE 4: Organizing results by ticker")
     ticker_sentiments = {}
     ticker_contributions = {}
     all_company_articles = []
-    
+
+    # Create results mapping: index -> sentiment
+    all_sentiments = {}
+    for idx, (article, ticker_obj, article_type, symbol, sentiment) in cached_results.items():
+        all_sentiments[idx] = sentiment
+
+    for uncached_idx, sentiment in zip(uncached_indices, new_sentiments):
+        all_sentiments[uncached_idx] = sentiment
+
+    # Process company articles by ticker
     for symbol, weight in NASDAQ_TOP_20.items():
-        print(f"\n  Analyzing {symbol} ({weight:.1%} weight)...")
         ticker_obj = ticker_objects[symbol]
-        news_articles = company_news_dict.get(symbol, [])
-        
-        if not news_articles:
-            print(f"    ⚠️ No news found")
+        articles_data = []
+
+        # Find all articles for this ticker
+        for idx, (article, t_obj, art_type, sym) in enumerate(articles_to_process):
+            if sym == symbol:
+                sentiment = all_sentiments.get(idx, 0.0)
+                article_data = analyze_article_sentiment(article, ticker_obj, 'company', base_sentiment=sentiment)
+                articles_data.append(article_data)
+
+        if articles_data:
+            total_score = sum(article_data['article_score'] for article_data in articles_data)
+            all_company_articles.extend(articles_data)
+
+            avg_sentiment = total_score / len(articles_data)
+            weighted_contribution = avg_sentiment * weight
+
+            ticker_sentiments[symbol] = avg_sentiment
+            ticker_contributions[symbol] = {
+                'sentiment': avg_sentiment,
+                'weight': weight,
+                'contribution': weighted_contribution,
+                'articles_count': len(articles_data),
+                'articles_data': articles_data
+            }
+
+            print(f"  {symbol} ({weight:.1%}): {avg_sentiment:+.2f} | Contrib: {weighted_contribution:+.2f} | Articles: {len(articles_data)}")
+        else:
             ticker_sentiments[symbol] = 0.0
             ticker_contributions[symbol] = {
                 'sentiment': 0.0,
@@ -1026,57 +1120,31 @@ def run_nasdaq_composite_analysis(finnhub_client):
                 'articles_count': 0,
                 'articles_data': []
             }
-            continue
-        
-        # Batch analyze articles (top 10 most recent)
-        articles_to_process = news_articles[:10]
-        articles_data = analyze_articles_batch(articles_to_process, ticker_obj, article_type='company')
-        
-        # Calculate total score
-        total_score = sum(article_data['article_score'] for article_data in articles_data)
-        all_company_articles.extend(articles_data)
-        
-        avg_sentiment = total_score / len(articles_data) if articles_data else 0
-        weighted_contribution = avg_sentiment * weight
-        
-        ticker_sentiments[symbol] = avg_sentiment
-        ticker_contributions[symbol] = {
-            'sentiment': avg_sentiment,
-            'weight': weight,
-            'contribution': weighted_contribution,
-            'articles_count': len(articles_data),
-            'articles_data': articles_data
-        }
-        
-        print(f"    ✓ Sentiment: {avg_sentiment:+.2f} | Contribution: {weighted_contribution:+.2f} | Articles: {len(articles_data)}")
-    
-    # Step 5: Calculate weighted company sentiment
+
+    # Calculate weighted company sentiment
     company_sentiment = sum(
-        contrib['contribution'] 
+        contrib['contribution']
         for contrib in ticker_contributions.values()
     )
-    
+
     print(f"\n📈 Company News Composite Sentiment: {company_sentiment:+.2f}")
-    
-    # Step 6: Fetch and analyze general market news (reuse if already fetched)
-    print(f"\n📡 PHASE 3: Analyzing general market news")
-    print(f"   Weight in composite: {SENTIMENT_WEIGHTS['market_news']:.0%}")
-    
-    # Use the market news we already fetched during the check, or fetch fresh if needed
-    market_news = market_news_preview if 'market_news_preview' in locals() else fetch_general_market_news(finnhub_client)
+
+    # Process market news articles
     market_articles_data = []
     market_sentiment = 0.0
-    
-    if market_news:
-        # Batch analyze market news (top 20 most relevant)
-        print(f"  📊 Processing {min(20, len(market_news))} market news articles...")
-        market_articles_data = analyze_articles_batch(market_news[:20], nasdaq_ticker, article_type='market')
-        
+
+    for idx, (article, t_obj, art_type, sym) in enumerate(articles_to_process):
+        if sym == 'MARKET':
+            sentiment = all_sentiments.get(idx, 0.0)
+            article_data = analyze_article_sentiment(article, nasdaq_ticker, 'market', base_sentiment=sentiment)
+            market_articles_data.append(article_data)
+
+    if market_articles_data:
         total_market_score = sum(article_data['article_score'] for article_data in market_articles_data)
-        market_sentiment = total_market_score / len(market_articles_data) if market_articles_data else 0
-        print(f"✅ Market News Sentiment: {market_sentiment:+.2f} | Articles: {len(market_articles_data)}")
+        market_sentiment = total_market_score / len(market_articles_data)
+        print(f"\n📡 Market News Sentiment: {market_sentiment:+.2f} | Articles: {len(market_articles_data)}")
     else:
-        print(f"⚠️ No relevant market news found")
+        print(f"\n⚠️ No relevant market news found")
 
     # Step 7: Calculate news composite with decay + new articles
     # Load previous news_composite score and apply decay
