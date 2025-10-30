@@ -885,7 +885,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
                 previous_news_composite = latest_run.avg_base_sentiment or 0.0
 
                 # Calculate time elapsed since last update (in minutes)
-                time_elapsed = (datetime.now() - latest_run.timestamp).total_seconds() / 60
+                time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
                 minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
 
                 # Apply decay to previous score (no new articles)
@@ -1082,7 +1082,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
         previous_news_composite = latest_run.avg_base_sentiment
 
         # Calculate time elapsed since last update (in minutes)
-        time_elapsed = (datetime.now() - latest_run.timestamp).total_seconds() / 60
+        time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
         minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
 
         # Apply decay to previous score
