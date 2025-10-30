@@ -413,7 +413,7 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
     )
 
     # Convert timestamp to timezone-aware datetime
-    published_datetime = datetime.fromtimestamp(published_at, tz=timezone.utc)
+    published_datetime = datetime.fromtimestamp(published_at, tz=pytz.UTC)
 
     return {
         'headline': headline,
