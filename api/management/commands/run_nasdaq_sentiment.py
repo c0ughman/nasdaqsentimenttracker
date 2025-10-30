@@ -1204,9 +1204,16 @@ def run_nasdaq_composite_analysis(finnhub_client):
 
         avg_base_sentiment = sum(a['base_sentiment'] for a in all_articles) / total_articles if total_articles else 0
         avg_surprise = sum(a['surprise_factor'] for a in all_articles) / total_articles if total_articles else 1.0
-        avg_novelty = sum(a['novelty_score'] for a in all_articles) / total_articles if total_articles else 1.0
+        # Novelty and recency may be None (feature deprecated); treat None as neutral defaults
+        avg_novelty = (
+            sum((a['novelty_score'] if a['novelty_score'] is not None else 1.0) for a in all_articles) / total_articles
+            if total_articles else 1.0
+        )
         avg_credibility = sum(a['source_credibility'] for a in all_articles) / total_articles if total_articles else 0.5
-        avg_recency = sum(a['recency_weight'] for a in all_articles) / total_articles if total_articles else 0.5
+        avg_recency = (
+            sum((a['recency_weight'] if a['recency_weight'] is not None else 0.5) for a in all_articles) / total_articles
+            if total_articles else 0.5
+        )
 
         # Create AnalysisRun with OHLCV and technical indicators
         analysis_run = AnalysisRun.objects.create(
