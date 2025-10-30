@@ -215,7 +215,7 @@ def dashboard_data(request):
         drivers = {
             'news_sentiment': {
                 'score': safe_round(news_sentiment_raw, 2),
-                'weight': 35,  # Most impactful for immediate market reactions
+                'weight': 50,  # Most impactful for immediate market reactions
                 'label': 'News Sentiment',
                 'articles_count': latest_run.articles_analyzed or 0
             },
@@ -228,14 +228,14 @@ def dashboard_data(request):
             },
             'technical_indicators': {
                 'score': safe_round(latest_run.technical_composite_score, 2),
-                'weight': 25,  # Price action and momentum signals
+                'weight': 20,  # Price action and momentum signals
                 'label': 'Technical Indicators',
                 'rsi': safe_float(latest_run.rsi_14),
                 'macd': safe_float(latest_run.macd)
             },
             'analyst_recommendations': {
                 'score': safe_round(latest_run.analyst_recommendations_score, 2),
-                'weight': 20,  # Professional institutional outlook
+                'weight': 10,  # Professional institutional outlook
                 'label': 'Analyst Recommendations',
                 'recommendations_count': latest_run.analyst_recommendations_count or 0,
                 'strong_buy': latest_run.analyst_strong_buy or 0,
