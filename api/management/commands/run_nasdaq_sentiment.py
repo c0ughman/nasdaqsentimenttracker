@@ -57,12 +57,11 @@ FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY', '')
 HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY', '')
 
 # Weights for composite score calculation (within each article)
+# Updated: 70% sentiment, 15% surprise, 15% credibility (removed novelty and recency)
 ARTICLE_WEIGHTS = {
-    'base_sentiment': 0.40,
-    'surprise_factor': 0.25,
-    'novelty': 0.15,
-    'source_credibility': 0.10,
-    'recency': 0.10
+    'base_sentiment': 0.70,
+    'surprise_factor': 0.15,
+    'source_credibility': 0.15
 }
 
 # Cache to track seen articles in current session
@@ -223,6 +222,35 @@ def calculate_recency_weight(published_timestamp):
         return 0.5
 
 
+def apply_news_decay(previous_score, minutes_since_update=1):
+    """
+    Apply exponential decay to news_composite score
+    Score decays to near-zero over 120 minutes (2 hours)
+
+    Args:
+        previous_score: The news_composite score from previous run
+        minutes_since_update: Number of minutes since last update (default 1)
+
+    Returns:
+        Decayed score (moving toward zero)
+    """
+    if previous_score == 0:
+        return 0.0
+
+    # Exponential decay rate that reaches ~1% after 120 minutes
+    # Using 3.83% decay per minute
+    decay_rate = 0.0383
+
+    # Apply decay (works same for positive and negative scores - both move toward zero)
+    decayed_score = previous_score * ((1 - decay_rate) ** minutes_since_update)
+
+    # Force to zero if very small (within 0.01 of zero)
+    if abs(decayed_score) < 0.01:
+        return 0.0
+
+    return decayed_score
+
+
 def sanitize_nan(value, default=0.0):
     """
     Sanitize NaN and Inf values to prevent database storage issues.
@@ -365,21 +393,18 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
         # Sentiment was provided from batch processing
         is_cached = False
     
-    # Calculate all component factors
+    # Calculate all component factors (removed novelty and recency)
     surprise_factor = calculate_surprise_factor(f"{headline} {summary}")
-    novelty_score = calculate_novelty(article_hash)
     source_credibility = get_source_credibility(source)
-    recency_weight = calculate_recency_weight(published_at)
-    
+
     # Calculate article score using weighted formula
+    # 70% sentiment, 15% surprise, 15% credibility
     article_score = (
         base_sentiment * ARTICLE_WEIGHTS['base_sentiment'] * 100 +
         (surprise_factor - 1) * ARTICLE_WEIGHTS['surprise_factor'] * 50 +
-        novelty_score * ARTICLE_WEIGHTS['novelty'] * 30 +
-        source_credibility * ARTICLE_WEIGHTS['source_credibility'] * 20 +
-        recency_weight * ARTICLE_WEIGHTS['recency'] * 20
+        source_credibility * ARTICLE_WEIGHTS['source_credibility'] * 20
     )
-    
+
     return {
         'headline': headline,
         'summary': summary,
@@ -390,9 +415,9 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
         'article_type': article_type,
         'base_sentiment': base_sentiment,
         'surprise_factor': surprise_factor,
-        'novelty_score': novelty_score,
+        'novelty_score': None,  # No longer used
         'source_credibility': source_credibility,
-        'recency_weight': recency_weight,
+        'recency_weight': None,  # No longer used
         'article_score': article_score,
         'is_cached': is_cached
     }
@@ -844,14 +869,29 @@ def run_nasdaq_composite_analysis(finnhub_client):
                     tech_composite = 0.0  # Fallback to 0
 
                 # Recalculate composite score with 4-factor model
-                # Keep news from cache, use fresh reddit, technical, and analyst recommendations
+                # Apply decay to news, use fresh reddit, technical, and analyst recommendations
                 NEWS_WEIGHT = 0.35
                 SOCIAL_WEIGHT = 0.20
                 TECHNICAL_WEIGHT = 0.25
                 ANALYST_WEIGHT = 0.20
 
-                # Extract news sentiment from previous run
-                news_composite = latest_run.avg_base_sentiment or 0.0
+                # Extract news sentiment from previous run and apply decay
+                previous_news_composite = latest_run.avg_base_sentiment or 0.0
+
+                # Calculate time elapsed since last update (in minutes)
+                time_elapsed = (datetime.now() - latest_run.timestamp).total_seconds() / 60
+                minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
+
+                # Apply decay to previous score (no new articles)
+                news_composite = apply_news_decay(previous_news_composite, minutes_elapsed)
+
+                # Cap at -100/+100
+                news_composite = max(-100, min(100, news_composite))
+
+                print(f"\n📉 Applying decay (no new articles):")
+                print(f"   Previous score: {previous_news_composite:+.2f}")
+                print(f"   Minutes elapsed: {minutes_elapsed}")
+                print(f"   Decayed score: {news_composite:+.2f}")
 
                 # Calculate NEW composite score with 4-factor model
                 new_composite_score = (
@@ -1028,12 +1068,47 @@ def run_nasdaq_composite_analysis(finnhub_client):
     else:
         print(f"⚠️ No relevant market news found")
 
-    # Step 7: Calculate news composite (company + market)
-    news_composite = (
+    # Step 7: Calculate news composite with decay + new articles
+    # Load previous news_composite score and apply decay
+    latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()
+
+    if latest_run and latest_run.avg_base_sentiment is not None:
+        previous_news_composite = latest_run.avg_base_sentiment
+
+        # Calculate time elapsed since last update (in minutes)
+        time_elapsed = (datetime.now() - latest_run.timestamp).total_seconds() / 60
+        minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
+
+        # Apply decay to previous score
+        decayed_score = apply_news_decay(previous_news_composite, minutes_elapsed)
+
+        print(f"\n📉 Applying decay to previous news score:")
+        print(f"   Previous score: {previous_news_composite:+.2f}")
+        print(f"   Minutes elapsed: {minutes_elapsed}")
+        print(f"   Decayed score: {decayed_score:+.2f}")
+    else:
+        # First run - no previous score
+        decayed_score = 0.0
+        print(f"\n📰 First run - starting with score = 0")
+
+    # Add NEW article scores (weighted by company/market)
+    new_article_contribution = (
         company_sentiment * SENTIMENT_WEIGHTS['company_news'] +
         market_sentiment * SENTIMENT_WEIGHTS['market_news']
     )
-    
+
+    # Combine decayed score + new articles
+    news_composite = decayed_score + new_article_contribution
+
+    # Cap at -100/+100
+    news_composite = max(-100, min(100, news_composite))
+
+    print(f"\n📰 News Composite Calculation:")
+    print(f"   Decayed previous score: {decayed_score:+.2f}")
+    print(f"   New articles contribution: {new_article_contribution:+.2f}")
+    print(f"   Combined (before cap): {decayed_score + new_article_contribution:+.2f}")
+    print(f"   Final news_composite: {news_composite:+.2f}")
+
     # Step 8: Get NASDAQ index price and OHLCV data from Yahoo Finance (NASDAQ Composite Index)
     try:
         print(f"\n📊 Fetching real-time OHLCV from Yahoo Finance...")
