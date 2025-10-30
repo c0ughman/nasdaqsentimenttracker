@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+import pytz
 from django.db.models import Avg, Min, Max, Count, Sum
 from django.db import transaction
 import requests
@@ -411,19 +412,22 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
         source_credibility * ARTICLE_WEIGHTS['source_credibility'] * 20
     )
 
+    # Convert timestamp to timezone-aware datetime
+    published_datetime = datetime.fromtimestamp(published_at, tz=timezone.utc)
+
     return {
         'headline': headline,
         'summary': summary,
         'source': source,
         'url': url,
-        'published_at': datetime.fromtimestamp(published_at),
+        'published_at': published_datetime,
         'article_hash': article_hash,
         'article_type': article_type,
         'base_sentiment': base_sentiment,
         'surprise_factor': surprise_factor,
-        'novelty_score': None,  # No longer used
+        'novelty_score': 0.0,  # No longer used (set to 0.0 for database compatibility)
         'source_credibility': source_credibility,
-        'recency_weight': None,  # No longer used
+        'recency_weight': 0.0,  # No longer used (set to 0.0 for database compatibility)
         'article_score': article_score,
         'is_cached': is_cached
     }
