@@ -95,8 +95,8 @@ def analyze_sentiment_finbert_api(text):
     text = text[:512]
     
     try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": text})
-        
+        response = requests.post(API_URL, headers=headers, json={"inputs": text}, timeout=30)
+
         if response.status_code == 200:
             result = response.json()
             sentiment_map = {'positive': 0, 'negative': 0, 'neutral': 0}
@@ -117,6 +117,9 @@ def analyze_sentiment_finbert_api(text):
             print(f"  ⚠️ API error: {response.status_code}")
             return 0.0
             
+    except requests.exceptions.Timeout:
+        print(f"  ⏱️  API timeout after 30s - returning neutral sentiment")
+        return 0.0
     except Exception as e:
         print(f"  ⚠️ Error analyzing sentiment: {e}")
         return 0.0
@@ -135,8 +138,8 @@ def analyze_sentiment_finbert_batch(texts):
     
     try:
         # Send batch request
-        response = requests.post(API_URL, headers=headers, json={"inputs": truncated_texts})
-        
+        response = requests.post(API_URL, headers=headers, json={"inputs": truncated_texts}, timeout=30)
+
         if response.status_code == 200:
             results = response.json()
             sentiment_scores = []
@@ -164,6 +167,9 @@ def analyze_sentiment_finbert_batch(texts):
             # Return zeros for all texts
             return [0.0] * len(texts)
             
+    except requests.exceptions.Timeout:
+        print(f"  ⏱️  Batch API timeout after 30s - returning neutral sentiments for {len(texts)} articles")
+        return [0.0] * len(texts)
     except Exception as e:
         print(f"  ⚠️ Error in batch sentiment analysis: {e}")
         return [0.0] * len(texts)
