@@ -404,12 +404,16 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
     surprise_factor = calculate_surprise_factor(f"{headline} {summary}")
     source_credibility = get_source_credibility(source)
 
-    # Calculate article score using weighted formula
-    # 70% sentiment, 15% surprise, 15% credibility
+    # Calculate article score using amplified weighted formula
+    # AMPLIFIED SCORING: 3x multipliers for better visibility and movement
+    # Base sentiment: -250 to +250 (was -70 to +70)
+    # Surprise factor: 0 to +50 (was -7.5 to +37.5)
+    # Source credibility: -25 to +25 (was 0 to +3)
+    # Typical range: -325 to +325 (before market cap weighting)
     article_score = (
-        base_sentiment * ARTICLE_WEIGHTS['base_sentiment'] * 100 +
-        (surprise_factor - 1) * ARTICLE_WEIGHTS['surprise_factor'] * 50 +
-        source_credibility * ARTICLE_WEIGHTS['source_credibility'] * 20
+        base_sentiment * ARTICLE_WEIGHTS['base_sentiment'] * 250 +
+        (surprise_factor - 1) * ARTICLE_WEIGHTS['surprise_factor'] * 150 +
+        (source_credibility - 0.5) * ARTICLE_WEIGHTS['source_credibility'] * 50
     )
 
     # Convert timestamp to timezone-aware datetime
@@ -1068,11 +1072,11 @@ def run_nasdaq_composite_analysis(finnhub_client):
         new_sentiments = analyze_sentiment_finbert_batch(uncached_texts)
         print(f"  ✅ Single batch analysis complete!")
 
-    # Step 6: Process results and organize by ticker
-    print(f"\n📈 PHASE 4: Organizing results by ticker")
-    ticker_sentiments = {}
-    ticker_contributions = {}
-    all_company_articles = []
+    # Step 6: Process results with DIRECT WEIGHTING (Simplified Approach)
+    print(f"\n📈 PHASE 4: Processing articles with direct market cap weighting")
+
+    # General market news weight (for non-ticker-specific articles)
+    GENERAL_MARKET_WEIGHT = 0.30
 
     # Create results mapping: index -> sentiment
     all_sentiments = {}
@@ -1082,71 +1086,73 @@ def run_nasdaq_composite_analysis(finnhub_client):
     for uncached_idx, sentiment in zip(uncached_indices, new_sentiments):
         all_sentiments[uncached_idx] = sentiment
 
-    # Process company articles by ticker
-    for symbol, weight in NASDAQ_TOP_20.items():
-        ticker_obj = ticker_objects[symbol]
-        articles_data = []
+    # Accumulate weighted scores directly (no per-ticker averaging)
+    total_weighted_contribution = 0.0
+    article_count = 0
 
-        # Find all articles for this ticker
-        for idx, (article, t_obj, art_type, sym) in enumerate(articles_to_process):
-            if sym == symbol:
-                sentiment = all_sentiments.get(idx, 0.0)
-                article_data = analyze_article_sentiment(article, ticker_obj, 'company', base_sentiment=sentiment)
-                articles_data.append(article_data)
-
-        if articles_data:
-            total_score = sum(article_data['article_score'] for article_data in articles_data)
-            all_company_articles.extend(articles_data)
-
-            avg_sentiment = total_score / len(articles_data)
-            weighted_contribution = avg_sentiment * weight
-
-            ticker_sentiments[symbol] = avg_sentiment
-            ticker_contributions[symbol] = {
-                'sentiment': avg_sentiment,
-                'weight': weight,
-                'contribution': weighted_contribution,
-                'articles_count': len(articles_data),
-                'articles_data': articles_data
-            }
-
-            print(f"  {symbol} ({weight:.1%}): {avg_sentiment:+.2f} | Contrib: {weighted_contribution:+.2f} | Articles: {len(articles_data)}")
-        else:
-            ticker_sentiments[symbol] = 0.0
-            ticker_contributions[symbol] = {
-                'sentiment': 0.0,
-                'weight': weight,
-                'contribution': 0.0,
-                'articles_count': 0,
-                'articles_data': []
-            }
-
-    # Calculate weighted company sentiment
-    company_sentiment = sum(
-        contrib['contribution']
-        for contrib in ticker_contributions.values()
-    )
-
-    print(f"\n📈 Company News Composite Sentiment: {company_sentiment:+.2f}")
-
-    # Process market news articles
+    # Track for database saving and reporting
+    ticker_contributions = {}
+    all_company_articles = []
     market_articles_data = []
-    market_sentiment = 0.0
+    ticker_article_counts = {}
 
-    for idx, (article, t_obj, art_type, sym) in enumerate(articles_to_process):
-        if sym == 'MARKET':
-            sentiment = all_sentiments.get(idx, 0.0)
+    # Initialize ticker contribution tracking
+    for symbol, weight in NASDAQ_TOP_20.items():
+        ticker_contributions[symbol] = {
+            'sentiment': 0.0,
+            'weight': weight,
+            'contribution': 0.0,
+            'articles_count': 0,
+            'articles_data': [],
+            'weighted_sum': 0.0  # Track weighted sum for averaging later
+        }
+
+    # Process ALL articles with direct weighting
+    print(f"  Processing {len(articles_to_process)} articles with direct market cap weighting...")
+
+    for idx, (article, ticker_obj, article_type, symbol) in enumerate(articles_to_process):
+        sentiment = all_sentiments.get(idx, 0.0)
+
+        if symbol == 'MARKET':
+            # Market news: use fixed weight
             article_data = analyze_article_sentiment(article, nasdaq_ticker, 'market', base_sentiment=sentiment)
+            weighted_contribution = article_data['article_score'] * GENERAL_MARKET_WEIGHT
             market_articles_data.append(article_data)
 
-    if market_articles_data:
-        total_market_score = sum(article_data['article_score'] for article_data in market_articles_data)
-        market_sentiment = total_market_score / len(market_articles_data)
-        print(f"\n📡 Market News Sentiment: {market_sentiment:+.2f} | Articles: {len(market_articles_data)}")
-    else:
-        print(f"\n⚠️ No relevant market news found")
+        else:
+            # Company news: use market cap weight
+            weight = NASDAQ_TOP_20.get(symbol, 0.0)
+            article_data = analyze_article_sentiment(article, ticker_obj, 'company', base_sentiment=sentiment)
+            weighted_contribution = article_data['article_score'] * weight
+            all_company_articles.append(article_data)
 
-    # Step 7: Calculate news composite with decay + new articles
+            # Track for this ticker (for database/reporting)
+            ticker_contributions[symbol]['articles_data'].append(article_data)
+            ticker_contributions[symbol]['articles_count'] += 1
+            ticker_contributions[symbol]['weighted_sum'] += article_data['article_score']
+
+        # Accumulate total
+        total_weighted_contribution += weighted_contribution
+        article_count += 1
+
+    # Calculate average sentiment per ticker (for reporting and TickerContribution table)
+    for symbol, contrib in ticker_contributions.items():
+        if contrib['articles_count'] > 0:
+            contrib['sentiment'] = contrib['weighted_sum'] / contrib['articles_count']
+            contrib['contribution'] = contrib['sentiment'] * contrib['weight']
+            print(f"  {symbol} ({contrib['weight']:.1%}): {contrib['sentiment']:+.2f} | Articles: {contrib['articles_count']}")
+
+    # Report market news
+    if market_articles_data:
+        market_avg = sum(a['article_score'] for a in market_articles_data) / len(market_articles_data)
+        market_weighted = market_avg * GENERAL_MARKET_WEIGHT
+        print(f"  MARKET ({GENERAL_MARKET_WEIGHT:.1%}): {market_avg:+.2f} | Articles: {len(market_articles_data)}")
+
+    print(f"\n📊 Total articles processed: {article_count}")
+    print(f"📊 Company articles: {len(all_company_articles)}")
+    print(f"📊 Market articles: {len(market_articles_data)}")
+
+    # Step 7: Calculate news composite with decay + new articles (SIMPLIFIED)
     # Load previous news_composite score and apply decay
     latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()
 
@@ -1169,22 +1175,24 @@ def run_nasdaq_composite_analysis(finnhub_client):
         decayed_score = 0.0
         print(f"\n📰 First run - starting with score = 0")
 
-    # Add NEW article scores (weighted by company/market)
-    new_article_contribution = (
-        company_sentiment * SENTIMENT_WEIGHTS['company_news'] +
-        market_sentiment * SENTIMENT_WEIGHTS['market_news']
-    )
+    # Calculate new article impact (DIRECT WEIGHTING - no 70/30 split)
+    # Average the weighted contributions across all articles
+    new_article_impact = total_weighted_contribution / article_count if article_count > 0 else 0.0
 
-    # Combine decayed score + new articles
-    news_composite = decayed_score + new_article_contribution
+    # Cap per-run impact at ±25 to prevent single-run spikes
+    new_article_impact = max(-25, min(25, new_article_impact))
 
-    # Cap at -100/+100
+    # Combine decayed score + new article impact
+    news_composite = decayed_score + new_article_impact
+
+    # Final cap at -100/+100
     news_composite = max(-100, min(100, news_composite))
 
-    print(f"\n📰 News Composite Calculation:")
+    print(f"\n📰 News Composite Calculation (Simplified Direct Weighting):")
     print(f"   Decayed previous score: {decayed_score:+.2f}")
-    print(f"   New articles contribution: {new_article_contribution:+.2f}")
-    print(f"   Combined (before cap): {decayed_score + new_article_contribution:+.2f}")
+    print(f"   New article impact (averaged): {new_article_impact:+.2f}")
+    print(f"   Per-run cap applied: ±25")
+    print(f"   Combined (before final cap): {decayed_score + new_article_impact:+.2f}")
     print(f"   Final news_composite: {news_composite:+.2f}")
 
     # Step 8: Get NASDAQ index price and OHLCV data from Yahoo Finance (NASDAQ Composite Index)
