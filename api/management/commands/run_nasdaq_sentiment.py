@@ -126,77 +126,54 @@ def analyze_sentiment_finbert_api(text):
         return 0.0
 
 
-def analyze_sentiment_finbert_batch(texts, max_retries=2):
+def analyze_sentiment_finbert_batch(texts):
     """
-    Analyze sentiment for multiple texts in a single batch API call with retry logic
-    Returns: list of sentiment scores in same order as input texts (None = timeout/error, retry next run)
-
-    Args:
-        texts: List of text strings to analyze
-        max_retries: Number of retry attempts for timeouts (default: 2)
+    Analyze sentiment for multiple texts in a single batch API call
+    Returns: list of sentiment scores in same order as input texts
     """
     API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
-
+    
     # Truncate each text to 512 characters
     truncated_texts = [text[:512] for text in texts]
+    
+    try:
+        # Send batch request
+        response = requests.post(API_URL, headers=headers, json={"inputs": truncated_texts}, timeout=30)
 
-    for attempt in range(max_retries + 1):
-        try:
-            # Increase timeout on retries (30s, 45s, 60s)
-            timeout = 30 + (attempt * 15)
-
-            if attempt > 0:
-                print(f"  🔄 Retry attempt {attempt}/{max_retries} with {timeout}s timeout...")
-
-            # Send batch request
-            response = requests.post(API_URL, headers=headers, json={"inputs": truncated_texts}, timeout=timeout)
-
-            if response.status_code == 200:
-                results = response.json()
-                sentiment_scores = []
-
-                # Process each result
-                for result in results:
-                    sentiment_map = {'positive': 0, 'negative': 0, 'neutral': 0}
-
-                    for item in result:
-                        label = item['label'].lower()
-                        score = item['score']
-                        sentiment_map[label] = score
-
-                    sentiment_score = sentiment_map['positive'] - sentiment_map['negative']
-                    sentiment_scores.append(sentiment_score)
-
-                if attempt > 0:
-                    print(f"  ✅ Retry successful!")
-
-                return sentiment_scores
-
-            elif response.status_code == 503:
-                print("  ⏳ Model loading, retrying in 20 seconds...")
-                time.sleep(20)
-                continue  # Retry without counting against max_retries
-            else:
-                print(f"  ⚠️ Batch API error: {response.status_code} - will retry these articles next run")
-                # Return None for all texts (don't cache errors)
-                return [None] * len(texts)
-
-        except requests.exceptions.Timeout:
-            if attempt < max_retries:
-                wait_time = 5 * (attempt + 1)  # 5s, 10s backoff
-                print(f"  ⏱️  API timeout after {timeout}s - waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-                continue  # Retry
-            else:
-                print(f"  ⏱️  API timeout after {max_retries} retries - will retry {len(texts)} articles next run (not caching)")
-                return [None] * len(texts)  # ✅ Return None instead of 0.0
-        except Exception as e:
-            print(f"  ⚠️ Error in batch sentiment analysis: {e} - will retry next run")
-            return [None] * len(texts)
-
-    # Should never reach here, but safety fallback
-    return [None] * len(texts)
+        if response.status_code == 200:
+            results = response.json()
+            sentiment_scores = []
+            
+            # Process each result
+            for result in results:
+                sentiment_map = {'positive': 0, 'negative': 0, 'neutral': 0}
+                
+                for item in result:
+                    label = item['label'].lower()
+                    score = item['score']
+                    sentiment_map[label] = score
+                
+                sentiment_score = sentiment_map['positive'] - sentiment_map['negative']
+                sentiment_scores.append(sentiment_score)
+            
+            return sentiment_scores
+            
+        elif response.status_code == 503:
+            print("  ⏳ Model loading, retrying in 20 seconds...")
+            time.sleep(20)
+            return analyze_sentiment_finbert_batch(texts)
+        else:
+            print(f"  ⚠️ Batch API error: {response.status_code}")
+            # Return zeros for all texts
+            return [0.0] * len(texts)
+            
+    except requests.exceptions.Timeout:
+        print(f"  ⏱️  Batch API timeout after 30s - returning neutral sentiments for {len(texts)} articles")
+        return [0.0] * len(texts)
+    except Exception as e:
+        print(f"  ⚠️ Error in batch sentiment analysis: {e}")
+        return [0.0] * len(texts)
 
 
 def calculate_surprise_factor(text):
@@ -1141,15 +1118,8 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Process ALL articles with direct weighting
     print(f"  Processing {len(articles_to_process)} articles with direct market cap weighting...")
 
-    skipped_timeout_articles = 0
-
     for idx, (article, ticker_obj, article_type, symbol) in enumerate(articles_to_process):
         sentiment = all_sentiments.get(idx, 0.0)
-
-        # Skip articles that timed out (sentiment = None)
-        if sentiment is None:
-            skipped_timeout_articles += 1
-            continue  # ✅ Don't process or save timeout articles
 
         if symbol == 'MARKET':
             # Market news: use fixed weight
@@ -1172,9 +1142,6 @@ def run_nasdaq_composite_analysis(finnhub_client):
         # Accumulate total
         total_weighted_contribution += weighted_contribution
         article_count += 1
-
-    if skipped_timeout_articles > 0:
-        print(f"  ⚠️  Skipped {skipped_timeout_articles} articles due to API timeout (will retry next run)")
 
     # Calculate average sentiment per ticker (for reporting and TickerContribution table)
     for symbol, contrib in ticker_contributions.items():
