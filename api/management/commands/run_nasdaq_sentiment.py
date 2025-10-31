@@ -900,12 +900,10 @@ def run_nasdaq_composite_analysis(finnhub_client):
                 minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
 
                 # Apply decay to previous score (no new articles)
+                # previous_news_composite is already in -100/+100 range (stored that way)
                 news_composite = apply_news_decay(previous_news_composite, minutes_elapsed)
 
-                # Multiply by 100 to scale up for workflow
-                news_composite = news_composite * 100
-
-                # Cap at -100/+100
+                # Cap at -100/+100 (already in correct scale, no multiplication needed)
                 news_composite = max(-100, min(100, news_composite))
 
                 print(f"\n📉 Applying decay (no new articles):")
@@ -1185,18 +1183,24 @@ def run_nasdaq_composite_analysis(finnhub_client):
 
     # Calculate new article impact (DIRECT WEIGHTING - no 70/30 split)
     # Average the weighted contributions across all articles
-    new_article_impact = total_weighted_contribution / article_count if article_count > 0 else 0.0
-
-    # Cap per-run impact at ±25 to prevent single-run spikes
+    # Note: weighted_contribution is article_score * weight, where article_score can be -325 to +325
+    # After averaging, we need to normalize to -100/+100 scale to match decayed_score
+    new_article_impact_raw = total_weighted_contribution / article_count if article_count > 0 else 0.0
+    
+    # Normalize new_article_impact to match the -100/+100 scale of decayed_score
+    # Typical article_score range: -325 to +325, weighted contributions: ~-46 to +46 per article
+    # After averaging 196 articles: roughly -0.25 to +0.25 range
+    # To normalize to -100/+100 scale: multiply by ~400 (but we cap per-run impact at ±25 points)
+    # Scale factor: max expected new_article_impact_raw is ~0.25, target cap is 25, so factor = 100
+    new_article_impact = new_article_impact_raw * 100
+    
+    # Cap per-run impact at ±25 to prevent single-run spikes (now in -100/+100 scale)
     new_article_impact = max(-25, min(25, new_article_impact))
 
-    # Combine decayed score + new article impact
+    # Combine decayed score + new article impact (both now in -100/+100 scale)
     news_composite = decayed_score + new_article_impact
 
-    # Multiply by 100 to scale up for workflow
-    news_composite = news_composite * 100
-
-    # Final cap at -100/+100
+    # Final cap at -100/+100 (already in correct scale, no multiplication needed)
     news_composite = max(-100, min(100, news_composite))
 
     print(f"\n📰 News Composite Calculation (Simplified Direct Weighting):")
