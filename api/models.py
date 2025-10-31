@@ -86,6 +86,9 @@ class AnalysisRun(models.Model):
     # QQQ price for correlation analysis
     qqq_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="QQQ ETF price at analysis time")
 
+    # VXN (NASDAQ-100 Volatility Index) - Market fear gauge for NASDAQ
+    vxn_index = models.FloatField(null=True, blank=True, help_text="VXN (NASDAQ-100 Volatility Index) at analysis time")
+
     # REDDIT SENTIMENT (Social Media)
     reddit_sentiment = models.FloatField(null=True, blank=True, help_text="Reddit/social media sentiment score (-100 to 100)")
     reddit_posts_analyzed = models.IntegerField(default=0, help_text="Number of Reddit posts analyzed")

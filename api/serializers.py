@@ -54,6 +54,8 @@ class AnalysisRunSerializer(serializers.ModelSerializer):
             'williams_r',
             'atr_14',
             'qqq_price',
+            # VXN (NASDAQ-100 Volatility Index)
+            'vxn_index',
             # Reddit sentiment
             'reddit_sentiment',
             'reddit_posts_analyzed',
@@ -83,7 +85,7 @@ class AnalysisRunSerializer(serializers.ModelSerializer):
             'avg_surprise_factor', 'avg_novelty', 'avg_source_credibility',
             'avg_recency_weight', 'rsi_14', 'macd', 'macd_signal', 'macd_histogram',
             'bb_upper', 'bb_middle', 'bb_lower', 'sma_20', 'sma_50', 'ema_9',
-            'ema_20', 'stoch_k', 'stoch_d', 'williams_r', 'atr_14',
+            'ema_20', 'stoch_k', 'stoch_d', 'williams_r', 'atr_14', 'vxn_index',
             'reddit_sentiment', 'technical_composite_score',
             'analyst_recommendations_score'
         ]

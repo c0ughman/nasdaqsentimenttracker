@@ -41,7 +41,7 @@ from .nasdaq_config import (
 )
 
 # Import technical indicators calculator (uses Yahoo Finance OHLCV + math)
-from .technical_indicators import fetch_indicators_with_fallback, fetch_latest_ohlcv_from_yfinance, calculate_technical_composite_score
+from .technical_indicators import fetch_indicators_with_fallback, fetch_latest_ohlcv_from_yfinance, calculate_technical_composite_score, fetch_vxn_price
 
 # Import Reddit sentiment analysis
 from .reddit_fetcher import fetch_all_reddit_content
@@ -882,6 +882,9 @@ def run_nasdaq_composite_analysis(finnhub_client):
                     traceback.print_exc()
                     tech_composite = 0.0  # Fallback to 0
 
+                # Fetch VXN (NASDAQ-100 Volatility Index)
+                decay_vxn_value = fetch_vxn_price()
+
                 # Recalculate composite score with 4-factor model
                 # Apply decay to news, use fresh reddit, technical, and analyst recommendations
                 NEWS_WEIGHT = 0.35
@@ -966,6 +969,8 @@ def run_nasdaq_composite_analysis(finnhub_client):
                     williams_r=tech_indicators['williams_r'],
                     atr_14=tech_indicators['atr_14'],
                     qqq_price=tech_indicators['qqq_price'],
+                    # VXN (NASDAQ-100 Volatility Index)
+                    vxn_index=decay_vxn_value,
                     # Reddit sentiment (fresh analysis even in cached path)
                     reddit_sentiment=reddit_sentiment,
                     reddit_posts_analyzed=reddit_analysis_data.get('posts_analyzed', 0),
@@ -1245,6 +1250,9 @@ def run_nasdaq_composite_analysis(finnhub_client):
     technical_composite_score = calculate_technical_composite_score(technical_indicators)
     print(f"\n📊 Technical Indicators Composite Score: {technical_composite_score:+.2f}")
 
+    # Step 9.6: Fetch VXN (NASDAQ-100 Volatility Index)
+    vxn_value = fetch_vxn_price()
+
     # Step 10: Calculate FINAL composite score (4-factor model)
     # Weighting optimized for market movement prediction:
     # - News: Most impactful for immediate market reactions (35%)
@@ -1332,6 +1340,8 @@ def run_nasdaq_composite_analysis(finnhub_client):
             williams_r=technical_indicators.get('williams_r'),
             atr_14=technical_indicators.get('atr_14'),
             qqq_price=technical_indicators.get('qqq_price'),
+            # VXN (NASDAQ-100 Volatility Index)
+            vxn_index=vxn_value,
             # Reddit sentiment
             reddit_sentiment=reddit_sentiment,
             reddit_posts_analyzed=reddit_analysis_data.get('posts_analyzed', 0),

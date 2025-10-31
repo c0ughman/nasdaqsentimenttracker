@@ -76,6 +76,33 @@ def fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m'):
         return None
 
 
+def fetch_vxn_price():
+    """
+    Fetch current VXN (NASDAQ-100 Volatility Index) from Yahoo Finance.
+
+    Returns:
+        Float: Current VXN value or None if failed
+    """
+    try:
+        ticker = yf.Ticker('^VXN')
+        info = ticker.info
+
+        # Try to get the current/regular market price
+        vxn_price = info.get('regularMarketPrice') or info.get('previousClose')
+
+        if vxn_price is not None:
+            vxn_value = float(vxn_price)
+            print(f"  ✓ VXN (NASDAQ-100 Volatility Index): {vxn_value:.2f}")
+            return vxn_value
+        else:
+            print(f"  ⚠️  No VXN price data available")
+            return None
+
+    except Exception as e:
+        print(f"  ⚠️  Error fetching VXN: {e}")
+        return None
+
+
 def fetch_ohlcv_data_from_db(ticker_symbol='^IXIC', hours_back=24):
     """
     Fetch OHLCV (Open, High, Low, Close, Volume) data from our database.
