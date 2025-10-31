@@ -302,6 +302,7 @@ def dashboard_data(request):
             'timestamp': timestamp_str,
             'price': safe_float(latest_run.stock_price),
             'price_change': safe_round(latest_run.price_change_percent, 2),
+            'vxn_index': safe_float(latest_run.vxn_index),
             'drivers': drivers,
             'historical': historical_data,
             'technical_indicators': {
@@ -310,7 +311,8 @@ def dashboard_data(request):
                 'macd_signal': safe_float(latest_run.macd_signal),
                 'bb_upper': safe_float(latest_run.bb_upper),
                 'bb_middle': safe_float(latest_run.bb_middle),
-                'bb_lower': safe_float(latest_run.bb_lower)
+                'bb_lower': safe_float(latest_run.bb_lower),
+                'vxn_index': safe_float(latest_run.vxn_index)
             },
             'current_score': {
                 'analyst_recommendations_score': safe_round(latest_run.analyst_recommendations_score, 2),
