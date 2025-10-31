@@ -925,6 +925,9 @@ def run_nasdaq_composite_analysis(finnhub_client):
                 # Apply decay to previous score (no new articles)
                 news_composite = apply_news_decay(previous_news_composite, minutes_elapsed)
 
+                # Multiply by 100 to scale up for workflow
+                news_composite = news_composite * 100
+
                 # Cap at -100/+100
                 news_composite = max(-100, min(100, news_composite))
 
@@ -1223,6 +1226,9 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Combine decayed score + new article impact
     news_composite = decayed_score + new_article_impact
 
+    # Multiply by 100 to scale up for workflow
+    news_composite = news_composite * 100
+
     # Final cap at -100/+100
     news_composite = max(-100, min(100, news_composite))
 
@@ -1292,10 +1298,10 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # - Technical: Price action and momentum signals (25%)
     # - Social Media: Retail sentiment and momentum (20%)
     # - Analyst Recommendations: Professional institutional outlook (20%)
-    NEWS_WEIGHT = 0.35
+    NEWS_WEIGHT = 0.50
     SOCIAL_WEIGHT = 0.20
-    TECHNICAL_WEIGHT = 0.25
-    ANALYST_WEIGHT = 0.20
+    TECHNICAL_WEIGHT = 0.20
+    ANALYST_WEIGHT = 0.10
 
     final_composite_score = (
         news_composite * NEWS_WEIGHT +

@@ -208,8 +208,8 @@ def dashboard_data(request):
 
         # Calculate news composite (from company + market news)
         # The old composite was 70% company + 30% market
-        # To extract just the news part from stored data, we use avg_base_sentiment * 100
-        news_sentiment_raw = (latest_run.avg_base_sentiment * 100) if (latest_run.avg_base_sentiment is not None) else 0
+        # avg_base_sentiment already contains the scaled news_composite (multiplied by 100 in run_nasdaq_sentiment.py)
+        news_sentiment_raw = latest_run.avg_base_sentiment if (latest_run.avg_base_sentiment is not None) else 0
 
         # Four sentiment drivers with optimized weights for market prediction
         drivers = {
@@ -274,7 +274,7 @@ def dashboard_data(request):
                 'timestamp': timestamp_str,
                 'composite_score': safe_round(run.composite_score, 2, 0),
                 'stock_price': safe_float(run.stock_price),
-                'news_score': safe_round((run.avg_base_sentiment * 100) if (run.avg_base_sentiment is not None) else None, 2),
+                'news_score': safe_round(run.avg_base_sentiment if (run.avg_base_sentiment is not None) else None, 2),
                 'social_score': safe_round(run.reddit_sentiment, 2),
                 'technical_score': safe_round(run.technical_composite_score, 2)
             })
