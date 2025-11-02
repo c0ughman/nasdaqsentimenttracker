@@ -252,32 +252,55 @@ def dashboard_data(request):
             }
         }
 
-        # Historical data for chart (last 24 hours - frontend will filter by timeframe)
+        # Historical data for chart - use latest run timestamp as reference point
+        # This ensures data is available even when markets are closed (e.g., weekends)
         from django.utils import timezone
         from datetime import timedelta
 
-        cutoff_time = timezone.now() - timedelta(hours=24)
-        historical_runs = AnalysisRun.objects.filter(
+        # Helper function to build simplified historical data
+        def build_historical_data(runs):
+            """Convert runs to minimal chart data (composite_score + timestamp only)"""
+            data = []
+            for run in runs:
+                # Safely handle timestamp conversion
+                try:
+                    timestamp_str = run.timestamp.isoformat() if run.timestamp else None
+                except (AttributeError, TypeError):
+                    timestamp_str = None
+
+                data.append({
+                    'timestamp': timestamp_str,
+                    'composite_score': safe_round(run.composite_score, 2, 0)
+                })
+            return data
+
+        # Use latest run's timestamp as reference point (not current time)
+        # This way we always show a full range of data, even on weekends
+        reference_time = latest_run.timestamp
+
+        # Fetch historical data for multiple timeframes
+        historical_runs_24h = AnalysisRun.objects.filter(
             ticker=nasdaq_ticker,
-            timestamp__gte=cutoff_time
+            timestamp__gte=reference_time - timedelta(hours=24),
+            timestamp__lte=reference_time
         ).order_by('timestamp')
 
-        historical_data = []
-        for run in historical_runs:
-            # Safely handle timestamp conversion
-            try:
-                timestamp_str = run.timestamp.isoformat() if run.timestamp else None
-            except (AttributeError, TypeError):
-                timestamp_str = None
+        historical_runs_2d = AnalysisRun.objects.filter(
+            ticker=nasdaq_ticker,
+            timestamp__gte=reference_time - timedelta(days=2),
+            timestamp__lte=reference_time
+        ).order_by('timestamp')
 
-            historical_data.append({
-                'timestamp': timestamp_str,
-                'composite_score': safe_round(run.composite_score, 2, 0),
-                'stock_price': safe_float(run.stock_price),
-                'news_score': safe_round(run.avg_base_sentiment if (run.avg_base_sentiment is not None) else None, 2),
-                'social_score': safe_round(run.reddit_sentiment, 2),
-                'technical_score': safe_round(run.technical_composite_score, 2)
-            })
+        historical_runs_3d = AnalysisRun.objects.filter(
+            ticker=nasdaq_ticker,
+            timestamp__gte=reference_time - timedelta(days=3),
+            timestamp__lte=reference_time
+        ).order_by('timestamp')
+
+        # Build simplified historical data for each timeframe
+        historical_data = build_historical_data(historical_runs_24h)
+        historical_data_2d = build_historical_data(historical_runs_2d)
+        historical_data_3d = build_historical_data(historical_runs_3d)
 
         # Get market status with error handling
         try:
@@ -305,6 +328,8 @@ def dashboard_data(request):
             'vxn_index': safe_float(latest_run.vxn_index),
             'drivers': drivers,
             'historical': historical_data,
+            'historical_2d': historical_data_2d,
+            'historical_3d': historical_data_3d,
             'technical_indicators': {
                 'rsi_14': safe_float(latest_run.rsi_14),
                 'macd': safe_float(latest_run.macd),
