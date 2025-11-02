@@ -14,8 +14,10 @@ from django.db import transaction
 from api.models import Ticker, RedditPost, RedditComment, RedditAnalysisRun
 from .reddit_config import REDDIT_CACHE_DURATION_MINUTES
 
-# Get HuggingFace API key
+# Get API keys and sentiment provider
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+SENTIMENT_PROVIDER = os.getenv('SENTIMENT_PROVIDER', 'huggingface').lower()  # 'openai' or 'huggingface'
 
 
 def analyze_sentiment_finbert_api(text):
@@ -50,6 +52,50 @@ def analyze_sentiment_finbert_api(text):
     except Exception as e:
         print(f"  ⚠️ Error analyzing sentiment: {e}")
         return 0.0
+
+
+def analyze_sentiment_openai_api(text):
+    """Analyze sentiment using OpenAI GPT-4o-mini (single text)"""
+    from openai import OpenAI
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    text = text[:8000]  # GPT-4o-mini supports longer context
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a financial sentiment analyzer for social media. Analyze the sentiment and respond ONLY with a single number between -1.0 (very negative) and +1.0 (very positive). Do not include any other text."
+                },
+                {
+                    "role": "user",
+                    "content": f"Analyze the sentiment:\n\n{text}"
+                }
+            ],
+            max_tokens=10,
+            temperature=0
+        )
+
+        sentiment_text = response.choices[0].message.content.strip()
+        sentiment_score = float(sentiment_text)
+        return max(-1.0, min(1.0, sentiment_score))
+
+    except Exception as e:
+        print(f"  ⚠️ Error analyzing sentiment with OpenAI: {e}")
+        return 0.0
+
+
+def analyze_sentiment_api(text):
+    """
+    Factory function: Route to the appropriate sentiment API based on SENTIMENT_PROVIDER
+    Returns sentiment score from -1 to +1
+    """
+    if SENTIMENT_PROVIDER == 'openai':
+        return analyze_sentiment_openai_api(text)
+    else:
+        return analyze_sentiment_finbert_api(text)
 
 
 # Subreddit credibility scores (similar to news source credibility)
@@ -181,8 +227,8 @@ def analyze_reddit_post(post_data, ticker_obj):
     # Combine title and body for sentiment analysis
     full_text = f"{post_data['title']} {post_data['body']}"
 
-    # Get FinBERT sentiment
-    base_sentiment = analyze_sentiment_finbert_api(full_text)
+    # Get sentiment from configured provider
+    base_sentiment = analyze_sentiment_api(full_text)
 
     # Calculate component scores
     recency_weight = calculate_recency_weight(post_data['created_utc'])
@@ -222,8 +268,8 @@ def analyze_reddit_comment(comment_data):
     Returns:
         Dictionary with sentiment and weighted score
     """
-    # Get FinBERT sentiment
-    base_sentiment = analyze_sentiment_finbert_api(comment_data['body'])
+    # Get sentiment from configured provider
+    base_sentiment = analyze_sentiment_api(comment_data['body'])
 
     # Weight comment by its score (upvotes indicate agreement/importance)
     # Normalize comment score (Reddit comments can have huge scores)
@@ -370,14 +416,15 @@ def analyze_reddit_content_batch(posts_data, comments_data, ticker_obj):
         post_texts = [f"{p['title']} {p['body']}" for p in posts_to_analyze]
 
         # Single batched API call for all posts
-        print(f"   🔬 Analyzing {len(post_texts)} posts with FinBERT (batched)...")
-        from .run_nasdaq_sentiment import analyze_sentiment_finbert_batch
+        provider_name = "OpenAI" if SENTIMENT_PROVIDER == 'openai' else "FinBERT"
+        print(f"   🔬 Analyzing {len(post_texts)} posts with {provider_name} (batched)...")
+        from .run_nasdaq_sentiment import analyze_sentiment_batch
 
         try:
-            sentiments = analyze_sentiment_finbert_batch(post_texts)
+            sentiments = analyze_sentiment_batch(post_texts)
         except:
             # Fallback to individual if batch fails
-            sentiments = [analyze_sentiment_finbert_api(text) for text in post_texts]
+            sentiments = [analyze_sentiment_api(text) for text in post_texts]
 
         # Process each post with its sentiment
         for i, post_data in enumerate(posts_to_analyze):

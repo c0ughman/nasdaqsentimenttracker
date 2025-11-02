@@ -56,6 +56,8 @@ from api.utils.market_hours import is_market_open, get_market_status
 
 FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY', '')
 HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+SENTIMENT_PROVIDER = os.environ.get('SENTIMENT_PROVIDER', 'huggingface').lower()  # 'openai' or 'huggingface'
 
 # Weights for composite score calculation (within each article)
 # Updated: 70% sentiment, 15% surprise, 15% credibility (removed novelty and recency)
@@ -174,6 +176,119 @@ def analyze_sentiment_finbert_batch(texts):
     except Exception as e:
         print(f"  ⚠️ Error in batch sentiment analysis: {e}")
         return [0.0] * len(texts)
+
+
+def analyze_sentiment_openai_api(text):
+    """Analyze sentiment using OpenAI GPT-4o-mini (single text)"""
+    from openai import OpenAI
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    text = text[:8000]  # GPT-4o-mini supports longer context
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a financial sentiment analyzer. Analyze the sentiment of financial news and respond ONLY with a single number between -1.0 (very negative) and +1.0 (very positive). Do not include any other text, explanation, or formatting."
+                },
+                {
+                    "role": "user",
+                    "content": f"Analyze the sentiment of this financial text:\n\n{text}"
+                }
+            ],
+            max_tokens=10,
+            temperature=0
+        )
+
+        # Extract and parse the sentiment score
+        sentiment_text = response.choices[0].message.content.strip()
+        sentiment_score = float(sentiment_text)
+
+        # Clamp to -1 to +1 range
+        sentiment_score = max(-1.0, min(1.0, sentiment_score))
+        return sentiment_score
+
+    except ValueError as e:
+        print(f"  ⚠️ Failed to parse OpenAI response as float: {sentiment_text}")
+        return 0.0
+    except Exception as e:
+        print(f"  ⚠️ Error analyzing sentiment with OpenAI: {e}")
+        return 0.0
+
+
+def analyze_sentiment_openai_batch(texts):
+    """
+    Analyze sentiment for multiple texts using OpenAI GPT-4o-mini (batch)
+    Note: OpenAI doesn't have native batch API, so we send concurrent requests
+    """
+    from openai import OpenAI
+    import concurrent.futures
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    truncated_texts = [text[:8000] for text in texts]
+
+    def analyze_single(text):
+        """Helper function to analyze single text"""
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a financial sentiment analyzer. Analyze the sentiment of financial news and respond ONLY with a single number between -1.0 (very negative) and +1.0 (very positive). Do not include any other text, explanation, or formatting."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Analyze the sentiment of this financial text:\n\n{text}"
+                    }
+                ],
+                max_tokens=10,
+                temperature=0
+            )
+
+            sentiment_text = response.choices[0].message.content.strip()
+            sentiment_score = float(sentiment_text)
+            return max(-1.0, min(1.0, sentiment_score))
+
+        except Exception as e:
+            print(f"  ⚠️ Error in batch item: {e}")
+            return 0.0
+
+    try:
+        # Use ThreadPoolExecutor for concurrent API calls (max 10 at a time to avoid rate limits)
+        sentiment_scores = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            sentiment_scores = list(executor.map(analyze_single, truncated_texts))
+
+        return sentiment_scores
+
+    except Exception as e:
+        print(f"  ⚠️ Error in OpenAI batch sentiment analysis: {e}")
+        return [0.0] * len(texts)
+
+
+def analyze_sentiment_api(text):
+    """
+    Factory function: Route to the appropriate sentiment API based on SENTIMENT_PROVIDER
+    Returns sentiment score from -1 to +1
+    """
+    if SENTIMENT_PROVIDER == 'openai':
+        return analyze_sentiment_openai_api(text)
+    else:
+        return analyze_sentiment_finbert_api(text)
+
+
+def analyze_sentiment_batch(texts):
+    """
+    Factory function: Route to the appropriate batch sentiment API
+    Returns list of sentiment scores from -1 to +1
+    """
+    if SENTIMENT_PROVIDER == 'openai':
+        return analyze_sentiment_openai_batch(texts)
+    else:
+        return analyze_sentiment_finbert_batch(texts)
 
 
 def calculate_surprise_factor(text):
@@ -395,7 +510,7 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
             base_sentiment = cached_sentiment
         else:
             combined_text = f"{headline}. {summary}"
-            base_sentiment = analyze_sentiment_finbert_api(combined_text)
+            base_sentiment = analyze_sentiment_api(combined_text)
     else:
         # Sentiment was provided from batch processing
         is_cached = False
@@ -467,9 +582,10 @@ def analyze_articles_batch(articles, ticker_obj, article_type='company'):
     # Batch process uncached articles
     new_sentiments = []
     if articles_to_analyze:
-        print(f"    🔬 Analyzing {len(articles_to_analyze)} new articles with FinBERT (batched)...")
+        provider_name = "OpenAI" if SENTIMENT_PROVIDER == 'openai' else "FinBERT"
+        print(f"    🔬 Analyzing {len(articles_to_analyze)} new articles with {provider_name} (batched)...")
         texts = [f"{a.get('headline', '')}. {a.get('summary', '')}" for a in articles_to_analyze]
-        new_sentiments = analyze_sentiment_finbert_batch(texts)
+        new_sentiments = analyze_sentiment_batch(texts)
     
     # Process all articles
     all_articles_data = []
@@ -1074,8 +1190,9 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Batch analyze all uncached articles in ONE API call
     new_sentiments = []
     if uncached_indices:
-        print(f"  🔬 Analyzing {len(uncached_indices)} new articles with FinBERT (single batch)...")
-        new_sentiments = analyze_sentiment_finbert_batch(uncached_texts)
+        provider_name = "OpenAI" if SENTIMENT_PROVIDER == 'openai' else "FinBERT"
+        print(f"  🔬 Analyzing {len(uncached_indices)} new articles with {provider_name} (single batch)...")
+        new_sentiments = analyze_sentiment_batch(uncached_texts)
         print(f"  ✅ Single batch analysis complete!")
 
     # Step 6: Process results with DIRECT WEIGHTING (Simplified Approach)
