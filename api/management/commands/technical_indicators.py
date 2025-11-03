@@ -22,6 +22,7 @@ def fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m'):
     - During market hours: Returns the current forming candle
     - After market hours: Returns the last completed candle from market close
     - Uses second-to-last candle to avoid incomplete data
+    - Falls back to previousClose price if no intraday data available
 
     Args:
         symbol: Ticker symbol (default: '^IXIC' for NASDAQ Composite)
@@ -36,7 +37,23 @@ def fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m'):
         df = ticker.history(period='1d', interval=interval)
 
         if df is None or len(df) == 0:
-            print(f"  ⚠️  No data from Yahoo Finance for {symbol}")
+            print(f"  ⚠️  No intraday data from Yahoo Finance for {symbol} - trying previousClose")
+            # Fallback to info/previousClose when market is closed
+            try:
+                info = ticker.info
+                prev_close = info.get('previousClose') or info.get('regularMarketPrice')
+                if prev_close:
+                    print(f"  ✓ Using previousClose: ${prev_close:.2f}")
+                    return {
+                        'open': float(prev_close),
+                        'high': float(prev_close),
+                        'low': float(prev_close),
+                        'close': float(prev_close),
+                        'volume': None,
+                        'timestamp': None
+                    }
+            except Exception as e:
+                print(f"  ⚠️  Could not fetch previousClose: {e}")
             return None
 
         # Check how many candles we have
