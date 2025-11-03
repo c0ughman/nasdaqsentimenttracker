@@ -1380,22 +1380,48 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Step 9.6: Fetch VXN (NASDAQ-100 Volatility Index)
     vxn_value = fetch_vxn_price()
 
-    # Step 10: Calculate FINAL composite score (4-factor model)
+    # Step 9.7: Calculate VIX inverse score (inverse relationship with volatility)
+    # Low volatility = bullish, High volatility = bearish
+    def calculate_vix_inverse_score(vxn):
+        """
+        Convert VXN to inverse sentiment score (-100 to +100)
+        VXN typically ranges 10-40 for NASDAQ-100
+        """
+        if vxn is None or vxn == 0:
+            return 0.0  # Neutral if no VXN data
+
+        if vxn < 15:
+            return 50.0  # Very low volatility (bullish)
+        elif vxn < 20:
+            return 25.0  # Low volatility
+        elif vxn < 25:
+            return 0.0   # Normal volatility (neutral)
+        elif vxn < 30:
+            return -25.0  # Elevated volatility
+        else:
+            return -50.0  # High volatility (bearish)
+
+    vix_inverse_score = calculate_vix_inverse_score(vxn_value)
+
+    # Step 10: Calculate FINAL composite score (5-factor model)
     # Weighting optimized for market movement prediction:
-    # - News: Most impactful for immediate market reactions (35%)
-    # - Technical: Price action and momentum signals (25%)
+    # - News: Most impactful for immediate market reactions (45%)
     # - Social Media: Retail sentiment and momentum (20%)
-    # - Analyst Recommendations: Professional institutional outlook (20%)
-    NEWS_WEIGHT = 0.50
+    # - Technical: Price action and momentum signals (15%)
+    # - Analyst Recommendations: Professional institutional outlook (10%)
+    # - VIX Inverse: Volatility/fear gauge (10%)
+    NEWS_WEIGHT = 0.45
     SOCIAL_WEIGHT = 0.20
-    TECHNICAL_WEIGHT = 0.20
+    TECHNICAL_WEIGHT = 0.15
     ANALYST_WEIGHT = 0.10
+    VIX_WEIGHT = 0.10
 
     final_composite_score = (
         news_composite * NEWS_WEIGHT +
         reddit_sentiment * SOCIAL_WEIGHT +
         technical_composite_score * TECHNICAL_WEIGHT +
-        analyst_recommendations_score * ANALYST_WEIGHT
+        analyst_recommendations_score * ANALYST_WEIGHT +
+        vix_inverse_score * VIX_WEIGHT
     )
 
     print(f"\n{'='*80}")
@@ -1405,6 +1431,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     print(f"   Social Media (Reddit):     {reddit_sentiment:+.2f} × {SOCIAL_WEIGHT:.0%} = {reddit_sentiment * SOCIAL_WEIGHT:+.2f}")
     print(f"   Technical Indicators:      {technical_composite_score:+.2f} × {TECHNICAL_WEIGHT:.0%} = {technical_composite_score * TECHNICAL_WEIGHT:+.2f}")
     print(f"   Analyst Recommendations:   {analyst_recommendations_score:+.2f} × {ANALYST_WEIGHT:.0%} = {analyst_recommendations_score * ANALYST_WEIGHT:+.2f}")
+    print(f"   VIX Inverse (Volatility):  {vix_inverse_score:+.2f} × {VIX_WEIGHT:.0%} = {vix_inverse_score * VIX_WEIGHT:+.2f}")
     print(f"{'='*80}")
 
     # Step 11: Save to database

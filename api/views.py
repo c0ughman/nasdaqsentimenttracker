@@ -211,11 +211,28 @@ def dashboard_data(request):
         # avg_base_sentiment already contains the scaled news_composite (multiplied by 100 in run_nasdaq_sentiment.py)
         news_sentiment_raw = latest_run.avg_base_sentiment if (latest_run.avg_base_sentiment is not None) else 0
 
-        # Four sentiment drivers with optimized weights for market prediction
+        # Calculate VIX inverse score (same logic as in run_nasdaq_sentiment.py)
+        def calculate_vix_inverse_score(vxn):
+            if vxn is None or vxn == 0:
+                return 0.0
+            if vxn < 15:
+                return 50.0
+            elif vxn < 20:
+                return 25.0
+            elif vxn < 25:
+                return 0.0
+            elif vxn < 30:
+                return -25.0
+            else:
+                return -50.0
+
+        vix_inverse_score = calculate_vix_inverse_score(latest_run.vxn_index)
+
+        # Five sentiment drivers with optimized weights for market prediction
         drivers = {
             'news_sentiment': {
                 'score': safe_round(news_sentiment_raw, 2),
-                'weight': 50,  # Most impactful for immediate market reactions
+                'weight': 45,  # Most impactful for immediate market reactions
                 'label': 'News Sentiment',
                 'articles_count': latest_run.articles_analyzed or 0
             },
@@ -228,7 +245,7 @@ def dashboard_data(request):
             },
             'technical_indicators': {
                 'score': safe_round(latest_run.technical_composite_score, 2),
-                'weight': 20,  # Price action and momentum signals
+                'weight': 15,  # Price action and momentum signals
                 'label': 'Technical Indicators',
                 'rsi': safe_float(latest_run.rsi_14),
                 'macd': safe_float(latest_run.macd)
@@ -244,9 +261,16 @@ def dashboard_data(request):
                 'sell': latest_run.analyst_sell or 0,
                 'strong_sell': latest_run.analyst_strong_sell or 0
             },
+            'vix_inverse': {
+                'score': safe_round(vix_inverse_score, 2),
+                'weight': 10,  # Volatility/fear gauge (inverse)
+                'label': 'VIX Inverse (Volatility)',
+                'vxn_value': safe_float(latest_run.vxn_index),
+                'description': 'Low volatility = bullish, High volatility = bearish'
+            },
             'market_breadth': {
                 'score': safe_round(latest_run.technical_composite_score * 0.3, 2) if latest_run.technical_composite_score is not None else 0,
-                'weight': 0,  # Not included in composite score yet
+                'weight': 0,  # Not included in composite score
                 'label': 'Market Breadth',
                 'description': 'Based on technical indicators and market momentum'
             }
