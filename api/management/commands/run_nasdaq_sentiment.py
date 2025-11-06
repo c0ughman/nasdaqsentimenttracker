@@ -179,7 +179,7 @@ def analyze_sentiment_finbert_batch(texts):
 
 
 def analyze_sentiment_openai_api(text):
-    """Analyze sentiment using OpenAI GPT-4o-mini (single text)"""
+    """Analyze NASDAQ market impact using OpenAI GPT-4o-mini (single text)"""
     from openai import OpenAI
 
     client = OpenAI(api_key=OPENAI_API_KEY)
@@ -191,18 +191,36 @@ def analyze_sentiment_openai_api(text):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a financial sentiment analyzer. Analyze the sentiment of financial news and respond ONLY with a single number between -1.0 (very negative) and +1.0 (very positive). Do not include any other text, explanation, or formatting."
+                    "content": """You are a quantitative hedge fund analyst specializing in market impact prediction. Your task is to evaluate a financial news article and output a single score from -1.0 to +1.0 predicting its impact on the Nasdaq Composite Index.
+
+**Scoring Framework:**
+- **-1.0 to -0.7:** Extremely Negative Impact. News likely to cause a sharp, broad market sell-off (e.g., a major geopolitical crisis, a surprise, large Fed rate hike, a systemic banking failure).
+- **-0.7 to -0.3:** Significantly Negative Impact. News with clear negative implications for many tech/growth stocks (e.g., high inflation data, rising bond yields, new regulations on big tech, weak earnings from a major index component).
+- **-0.3 to -0.1:** Mildly Negative Impact. News negative for a sector or a few large caps, with limited spillover (e.g., a data privacy fine for a single large tech firm, a weak revenue forecast from one major player).
+- **-0.1 to +0.1:** Neutral / Negligible Impact. News is company-specific, already expected, or irrelevant to tech/growth stocks (e.g., a minor merger in a small-cap, a CEO change at a non-index company, news that is already priced in).
+- **+0.1 to +0.3:** Mildly Positive Impact. News positive for a sector or a few large caps (e.g., strong earnings from a major player, a positive drug trial for a large biotech, a trade deal beneficial to semiconductors).
+- **+0.3 to +0.7:** Significantly Positive Impact. News with clear positive implications for the broad market (e.g., lower-than-expected inflation (CPI), a dovish Fed pivot, strong retail sales data, a breakthrough tech regulation).
+- **+0.7 to +1.0:** Extremely Positive Impact. News likely to cause a sharp, broad market rally (e.g., a crisis is averted, a massive, unexpected stimulus package, a major scientific breakthrough like viable nuclear fusion).
+
+**Evaluation Criteria:**
+1.  **Macro Relevance:** Does the news affect interest rates, inflation, economic growth, or geopolitical stability?
+2.  **Sector Breadth:** How many and how important are the Nasdaq sectors affected (Tech, Biotech, etc.)?
+3.  **Magnitude & Surprise:** Is the news a major event or a minor update? Is it unexpected?
+4.  **Systemic Risk/Opportunity:** Could this cause a cascade of other effects?
+
+**Output Format:**
+Respond ONLY with the final score, rounded to two decimal places. Example: `0.45` or `-0.62`. No other text."""
                 },
                 {
                     "role": "user",
-                    "content": f"Analyze the sentiment of this financial text:\n\n{text}"
+                    "content": f"Evaluate the following financial news article for its potential impact on the Nasdaq Composite Index. Use the provided scoring framework.\n\nARTICLE: {text}"
                 }
             ],
-            max_tokens=10,
+            max_tokens=20,
             temperature=0
         )
 
-        # Extract and parse the sentiment score
+        # Extract and parse the impact score
         sentiment_text = response.choices[0].message.content.strip()
         sentiment_score = float(sentiment_text)
 
@@ -220,7 +238,7 @@ def analyze_sentiment_openai_api(text):
 
 def analyze_sentiment_openai_batch(texts):
     """
-    Analyze sentiment for multiple texts using OpenAI GPT-4o-mini (batch)
+    Analyze NASDAQ market impact for multiple texts using OpenAI GPT-4o-mini (batch)
     Note: OpenAI doesn't have native batch API, so we send concurrent requests
     """
     from openai import OpenAI
@@ -237,14 +255,32 @@ def analyze_sentiment_openai_batch(texts):
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a financial sentiment analyzer. Analyze the sentiment of financial news and respond ONLY with a single number between -1.0 (very negative) and +1.0 (very positive). Do not include any other text, explanation, or formatting."
+                        "content": """You are a quantitative hedge fund analyst specializing in market impact prediction. Your task is to evaluate a financial news article and output a single score from -1.0 to +1.0 predicting its impact on the Nasdaq Composite Index.
+
+**Scoring Framework:**
+- **-1.0 to -0.7:** Extremely Negative Impact. News likely to cause a sharp, broad market sell-off (e.g., a major geopolitical crisis, a surprise, large Fed rate hike, a systemic banking failure).
+- **-0.7 to -0.3:** Significantly Negative Impact. News with clear negative implications for many tech/growth stocks (e.g., high inflation data, rising bond yields, new regulations on big tech, weak earnings from a major index component).
+- **-0.3 to -0.1:** Mildly Negative Impact. News negative for a sector or a few large caps, with limited spillover (e.g., a data privacy fine for a single large tech firm, a weak revenue forecast from one major player).
+- **-0.1 to +0.1:** Neutral / Negligible Impact. News is company-specific, already expected, or irrelevant to tech/growth stocks (e.g., a minor merger in a small-cap, a CEO change at a non-index company, news that is already priced in).
+- **+0.1 to +0.3:** Mildly Positive Impact. News positive for a sector or a few large caps (e.g., strong earnings from a major player, a positive drug trial for a large biotech, a trade deal beneficial to semiconductors).
+- **+0.3 to +0.7:** Significantly Positive Impact. News with clear positive implications for the broad market (e.g., lower-than-expected inflation (CPI), a dovish Fed pivot, strong retail sales data, a breakthrough tech regulation).
+- **+0.7 to +1.0:** Extremely Positive Impact. News likely to cause a sharp, broad market rally (e.g., a crisis is averted, a massive, unexpected stimulus package, a major scientific breakthrough like viable nuclear fusion).
+
+**Evaluation Criteria:**
+1.  **Macro Relevance:** Does the news affect interest rates, inflation, economic growth, or geopolitical stability?
+2.  **Sector Breadth:** How many and how important are the Nasdaq sectors affected (Tech, Biotech, etc.)?
+3.  **Magnitude & Surprise:** Is the news a major event or a minor update? Is it unexpected?
+4.  **Systemic Risk/Opportunity:** Could this cause a cascade of other effects?
+
+**Output Format:**
+Respond ONLY with the final score, rounded to two decimal places. Example: `0.45` or `-0.62`. No other text."""
                     },
                     {
                         "role": "user",
-                        "content": f"Analyze the sentiment of this financial text:\n\n{text}"
+                        "content": f"Evaluate the following financial news article for its potential impact on the Nasdaq Composite Index. Use the provided scoring framework.\n\nARTICLE: {text}"
                     }
                 ],
-                max_tokens=10,
+                max_tokens=20,
                 temperature=0
             )
 
