@@ -844,7 +844,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     
     # Collect all article hashes from fetched news
     for symbol, news_articles in company_news_dict.items():
-        for article in news_articles[:10]:  # Check top 10 per ticker
+        for article in news_articles:  # Process all articles per ticker (no limit)
             article_hash = get_article_hash(
                 article.get('headline', ''),
                 article.get('summary', '')
@@ -853,7 +853,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     
     # Also check general market news
     market_news_preview = fetch_general_market_news(finnhub_client)
-    for article in market_news_preview[:20]:  # Check top 20 market articles
+    for article in market_news_preview:  # Process all market articles (no limit)
         article_hash = get_article_hash(
             article.get('headline', ''),
             article.get('summary', '')
@@ -1134,7 +1134,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Step 4: Collect ALL articles first (company + market news)
     print(f"\n🔍 PHASE 2: Collecting all articles for single-batch analysis")
 
-    # Collect company articles (top 10 per ticker)
+    # Collect company articles (all articles per ticker - no limit)
     articles_to_process = []  # List of (article, ticker_obj, article_type, symbol) tuples
     ticker_article_counts = {}  # Track how many articles per ticker
 
@@ -1143,24 +1143,22 @@ def run_nasdaq_composite_analysis(finnhub_client):
         news_articles = company_news_dict.get(symbol, [])
 
         if news_articles:
-            top_articles = news_articles[:10]
-            for article in top_articles:
+            for article in news_articles:  # Process all articles (no limit)
                 articles_to_process.append((article, ticker_obj, 'company', symbol))
-            ticker_article_counts[symbol] = len(top_articles)
-            print(f"  {symbol}: {len(top_articles)} articles")
+            ticker_article_counts[symbol] = len(news_articles)
+            print(f"  {symbol}: {len(news_articles)} articles")
         else:
             ticker_article_counts[symbol] = 0
 
-    # Collect market news (top 20 most relevant)
+    # Collect market news (all relevant articles - no limit)
     market_news = market_news_preview if 'market_news_preview' in locals() else fetch_general_market_news(finnhub_client)
     market_article_count = 0
 
     if market_news:
-        top_market_news = market_news[:20]
-        for article in top_market_news:
+        for article in market_news:  # Process all articles (no limit)
             articles_to_process.append((article, nasdaq_ticker, 'market', 'MARKET'))
-        market_article_count = len(top_market_news)
-        print(f"  MARKET: {len(top_market_news)} articles")
+        market_article_count = len(market_news)
+        print(f"  MARKET: {len(market_news)} articles")
 
     total_articles = len(articles_to_process)
     print(f"\n📊 Total articles to process: {total_articles}")
