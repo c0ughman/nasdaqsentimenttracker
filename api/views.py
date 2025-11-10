@@ -283,7 +283,7 @@ def dashboard_data(request):
 
         # Helper function to build simplified historical data
         def build_historical_data(runs):
-            """Convert runs to minimal chart data (composite_score + timestamp + stock_price)"""
+            """Convert runs to chart data (composite_score + timestamp + stock_price + news + technical)"""
             data = []
             for run in runs:
                 # Safely handle timestamp conversion
@@ -295,7 +295,9 @@ def dashboard_data(request):
                 data.append({
                     'timestamp': timestamp_str,
                     'composite_score': safe_round(run.composite_score, 2, 0),
-                    'price': safe_float(run.stock_price)
+                    'price': safe_float(run.stock_price),
+                    'news_composite': safe_round(run.avg_base_sentiment, 2, 0),  # News sentiment component
+                    'technical_composite': safe_round(run.technical_composite_score, 2, 0)  # Technical indicators component
                 })
             return data
 

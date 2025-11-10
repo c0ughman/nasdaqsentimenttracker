@@ -16,7 +16,7 @@ CENTRAL_TZ = pytz.timezone('America/Chicago')
 
 # Trading hours in Central Time
 MARKET_OPEN_TIME = time(8, 30)  # 8:30 AM CT
-MARKET_CLOSE_TIME = time(16, 0)  # 4:00 PM CT
+MARKET_CLOSE_TIME = time(15, 0)  # 3:00 PM CT (4:00 PM ET - actual market close)
 
 # Major US stock market holidays (format: (month, day))
 # These are the main ones - New Year's Day, MLK Day, Presidents Day, Good Friday,
