@@ -57,6 +57,7 @@ from api.utils.market_hours import is_market_open, get_market_status
 FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY', '')
 HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY', '')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+FINLIGHT_API_KEY = os.environ.get('FINLIGHT_API_KEY', '')
 SENTIMENT_PROVIDER = os.environ.get('SENTIMENT_PROVIDER', 'huggingface').lower()  # 'openai' or 'huggingface'
 
 # Weights for composite score calculation (within each article)
@@ -479,41 +480,138 @@ def fetch_general_market_news(finnhub_client):
     Returns: list of relevant market news articles
     """
     print(f"\n📈 Fetching general market news...")
-    
+
     try:
         # Fetch general news - using 'general' category
         news = finnhub_client.general_news('general', min_id=0)
-        
+
         print(f"  Received {len(news)} general news articles")
-        
+
         # Filter for market-moving news
         relevant_news = []
-        
+
         for article in news:
             headline = article.get('headline', '').lower()
             summary = article.get('summary', '').lower()
             combined_text = f"{headline} {summary}"
-            
+
             # Check if article contains market-moving keywords
             has_market_keyword = any(
-                keyword in combined_text 
+                keyword in combined_text
                 for keyword in MARKET_MOVING_KEYWORDS
             )
-            
+
             # Check if article should be excluded (opinion pieces, etc.)
             has_exclude_keyword = any(
-                keyword in combined_text 
+                keyword in combined_text
                 for keyword in EXCLUDE_KEYWORDS
             )
-            
+
             if has_market_keyword and not has_exclude_keyword:
                 relevant_news.append(article)
-        
+
         print(f"✅ Filtered to {len(relevant_news)} market-moving articles")
         return relevant_news
-        
+
     except Exception as e:
         print(f"❌ Error fetching general market news: {e}")
+        return []
+
+
+def fetch_finlight_market_news():
+    """
+    Fetch market news from Finlight API
+    Returns: list of articles in FinnHub-compatible format
+
+    This function is designed to fail gracefully - if Finlight API is unavailable
+    or not configured, it returns an empty list and logs the issue without
+    impacting the rest of the analysis pipeline.
+    """
+    if not FINLIGHT_API_KEY:
+        print(f"  ℹ️  Finlight API key not configured - skipping Finlight news")
+        return []
+
+    print(f"\n🔦 Fetching Finlight market news...")
+
+    try:
+        # Import Finlight client (lazy import to avoid failures if not installed)
+        from finlight_client import FinlightApi, ApiConfig
+        from finlight_client.models import GetArticlesParams
+
+        # Initialize Finlight client
+        client = FinlightApi(config=ApiConfig(api_key=FINLIGHT_API_KEY))
+
+        # Fetch articles related to NASDAQ
+        params = GetArticlesParams(query="NASDAQ", language="en")
+        response = client.articles.fetch_articles(params=params)
+
+        if not response or not hasattr(response, 'articles'):
+            print(f"  ⚠️  Finlight returned no articles")
+            return []
+
+        finlight_articles = response.articles
+        print(f"  Received {len(finlight_articles)} Finlight articles")
+
+        # Convert Finlight articles to FinnHub-compatible format
+        converted_articles = []
+
+        for article in finlight_articles:
+            try:
+                # Extract article data (adjust field names based on Finlight's actual response)
+                headline = getattr(article, 'title', '') or getattr(article, 'headline', '')
+                summary = getattr(article, 'description', '') or getattr(article, 'summary', '') or getattr(article, 'content', '')
+                source = getattr(article, 'source', 'Finlight')
+                url = getattr(article, 'url', '') or getattr(article, 'link', '')
+
+                # Handle timestamp - try multiple possible field names
+                published_timestamp = None
+                for timestamp_field in ['published_at', 'publishedAt', 'published', 'datetime', 'date']:
+                    if hasattr(article, timestamp_field):
+                        timestamp_value = getattr(article, timestamp_field)
+                        if timestamp_value:
+                            # Try to convert to Unix timestamp
+                            if isinstance(timestamp_value, (int, float)):
+                                published_timestamp = int(timestamp_value)
+                            elif isinstance(timestamp_value, str):
+                                # Try parsing ISO format
+                                try:
+                                    from dateutil import parser
+                                    dt = parser.parse(timestamp_value)
+                                    published_timestamp = int(dt.timestamp())
+                                except:
+                                    pass
+                            break
+
+                # Default to current time if no timestamp found
+                if not published_timestamp:
+                    published_timestamp = int(time.time())
+
+                # Only add if we have minimum required fields
+                if headline and summary:
+                    converted_articles.append({
+                        'headline': headline,
+                        'summary': summary[:500],  # Truncate long summaries
+                        'source': source,
+                        'url': url,
+                        'datetime': published_timestamp
+                    })
+
+            except Exception as article_error:
+                print(f"  ⚠️  Error converting Finlight article: {article_error}")
+                continue
+
+        print(f"✅ Converted {len(converted_articles)} Finlight articles to FinnHub format")
+        return converted_articles
+
+    except ImportError as e:
+        print(f"  ⚠️  Finlight client not installed: {e}")
+        print(f"      Install with: pip install finlight-client")
+        return []
+    except Exception as e:
+        print(f"  ⚠️  Finlight API error: {e}")
+        print(f"      Continuing without Finlight data...")
+        import traceback
+        traceback.print_exc()
         return []
 
 
@@ -895,6 +993,15 @@ def run_nasdaq_composite_analysis(finnhub_client):
             article.get('summary', '')
         )
         all_article_hashes.append(article_hash)
+
+    # Also check Finlight news
+    finlight_news_preview = fetch_finlight_market_news()
+    for article in finlight_news_preview:  # Process all Finlight articles (no limit)
+        article_hash = get_article_hash(
+            article.get('headline', ''),
+            article.get('summary', '')
+        )
+        all_article_hashes.append(article_hash)
     
     # Check if any articles are new (not in database)
     if all_article_hashes:
@@ -1196,6 +1303,16 @@ def run_nasdaq_composite_analysis(finnhub_client):
         market_article_count = len(market_news)
         print(f"  MARKET: {len(market_news)} articles")
 
+    # Collect Finlight news (all relevant articles - no limit)
+    finlight_news = finlight_news_preview if 'finlight_news_preview' in locals() else fetch_finlight_market_news()
+    finlight_article_count = 0
+
+    if finlight_news:
+        for article in finlight_news:  # Process all articles (no limit)
+            articles_to_process.append((article, nasdaq_ticker, 'market', 'FINLIGHT'))
+        finlight_article_count = len(finlight_news)
+        print(f"  FINLIGHT: {len(finlight_news)} articles")
+
     total_articles = len(articles_to_process)
     print(f"\n📊 Total articles to process: {total_articles}")
 
@@ -1308,6 +1425,8 @@ def run_nasdaq_composite_analysis(finnhub_client):
     print(f"\n📊 Total articles processed: {article_count}")
     print(f"📊 Company articles: {len(all_company_articles)}")
     print(f"📊 Market articles: {len(market_articles_data)}")
+    if finlight_article_count > 0:
+        print(f"📊 Finlight articles: {finlight_article_count}")
 
     # Step 7: Calculate news composite with decay + new articles (SIMPLIFIED)
     # Load previous news_composite score and apply decay
