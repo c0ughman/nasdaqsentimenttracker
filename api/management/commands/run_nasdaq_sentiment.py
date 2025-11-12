@@ -996,14 +996,18 @@ def run_nasdaq_composite_analysis(finnhub_client):
         )
         all_article_hashes.append(article_hash)
 
-    # Also check Finlight news
-    finlight_news_preview = fetch_finlight_market_news()
-    for article in finlight_news_preview:  # Process all Finlight articles (no limit)
-        article_hash = get_article_hash(
-            article.get('headline', ''),
-            article.get('summary', '')
-        )
-        all_article_hashes.append(article_hash)
+    # Also check Finlight news (wrapped in try-catch to never break the pipeline)
+    try:
+        finlight_news_preview = fetch_finlight_market_news()
+        for article in finlight_news_preview:  # Process all Finlight articles (no limit)
+            article_hash = get_article_hash(
+                article.get('headline', ''),
+                article.get('summary', '')
+            )
+            all_article_hashes.append(article_hash)
+    except Exception as finlight_error:
+        print(f"  ⚠️  Finlight preview failed: {finlight_error}")
+        finlight_news_preview = []
     
     # Check if any articles are new (not in database)
     if all_article_hashes:
@@ -1306,14 +1310,20 @@ def run_nasdaq_composite_analysis(finnhub_client):
         print(f"  MARKET: {len(market_news)} articles")
 
     # Collect Finlight news (all relevant articles - no limit)
-    finlight_news = finlight_news_preview if 'finlight_news_preview' in locals() else fetch_finlight_market_news()
+    # Treat Finlight articles as general market news (same as FinnHub market news)
+    # Wrapped in try-catch to ensure Finlight never breaks the pipeline
     finlight_article_count = 0
+    try:
+        finlight_news = finlight_news_preview if 'finlight_news_preview' in locals() else fetch_finlight_market_news()
 
-    if finlight_news:
-        for article in finlight_news:  # Process all articles (no limit)
-            articles_to_process.append((article, nasdaq_ticker, 'market', 'FINLIGHT'))
-        finlight_article_count = len(finlight_news)
-        print(f"  FINLIGHT: {len(finlight_news)} articles")
+        if finlight_news:
+            for article in finlight_news:  # Process all articles (no limit)
+                articles_to_process.append((article, nasdaq_ticker, 'market', 'MARKET'))
+            finlight_article_count = len(finlight_news)
+            print(f"  FINLIGHT: {len(finlight_news)} articles")
+    except Exception as finlight_error:
+        print(f"  ⚠️  Finlight collection failed: {finlight_error}")
+        print(f"      Continuing without Finlight articles...")
 
     total_articles = len(articles_to_process)
     print(f"\n📊 Total articles to process: {total_articles}")
