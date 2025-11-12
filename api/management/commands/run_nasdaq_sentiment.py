@@ -557,30 +557,32 @@ def fetch_finlight_market_news():
 
         for article in finlight_articles:
             try:
-                # Extract article data (adjust field names based on Finlight's actual response)
-                headline = getattr(article, 'title', '') or getattr(article, 'headline', '')
-                summary = getattr(article, 'description', '') or getattr(article, 'summary', '') or getattr(article, 'content', '')
+                # Extract article data using Finlight's actual field names
+                # Fields: link, title, publishDate, source, language, sentiment, confidence, summary, images, content, companies
+                headline = getattr(article, 'title', '')
+                summary = getattr(article, 'summary', '') or getattr(article, 'content', '')
                 source = getattr(article, 'source', 'Finlight')
-                url = getattr(article, 'url', '') or getattr(article, 'link', '')
+                url = getattr(article, 'link', '')
 
-                # Handle timestamp - try multiple possible field names
+                # Handle timestamp - Finlight uses 'publishDate' field
                 published_timestamp = None
-                for timestamp_field in ['published_at', 'publishedAt', 'published', 'datetime', 'date']:
-                    if hasattr(article, timestamp_field):
-                        timestamp_value = getattr(article, timestamp_field)
-                        if timestamp_value:
-                            # Try to convert to Unix timestamp
-                            if isinstance(timestamp_value, (int, float)):
-                                published_timestamp = int(timestamp_value)
-                            elif isinstance(timestamp_value, str):
-                                # Try parsing ISO format
-                                try:
-                                    from dateutil import parser
-                                    dt = parser.parse(timestamp_value)
-                                    published_timestamp = int(dt.timestamp())
-                                except:
-                                    pass
-                            break
+                publish_date = getattr(article, 'publishDate', None)
+
+                if publish_date:
+                    try:
+                        # Try to convert to Unix timestamp
+                        if isinstance(publish_date, (int, float)):
+                            published_timestamp = int(publish_date)
+                        elif isinstance(publish_date, str):
+                            # Try parsing ISO format
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(publish_date.replace('Z', '+00:00'))
+                            published_timestamp = int(dt.timestamp())
+                        elif hasattr(publish_date, 'timestamp'):
+                            # If it's already a datetime object
+                            published_timestamp = int(publish_date.timestamp())
+                    except Exception as ts_error:
+                        print(f"  ⚠️  Error parsing timestamp: {ts_error}")
 
                 # Default to current time if no timestamp found
                 if not published_timestamp:
