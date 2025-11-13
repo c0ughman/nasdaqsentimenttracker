@@ -7,7 +7,7 @@ Handles:
 - Major US stock market holidays
 """
 
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import pytz
 
 
@@ -119,3 +119,42 @@ def get_market_status():
     }
 
     return status
+
+
+def get_current_trading_day():
+    """
+    Get the current trading day date (in UTC).
+    
+    Returns the current date if it's a trading day (Mon-Fri, not holiday),
+    otherwise returns the most recent trading day (typically Friday).
+    
+    Returns:
+        datetime.date: The current or most recent trading day
+    """
+    # Start with today in Central Time (market timezone)
+    now_ct = datetime.now(CENTRAL_TZ)
+    current_date = now_ct.date()
+    
+    # Walk backwards up to 7 days to find most recent trading day
+    for days_back in range(8):  # Check today + previous 7 days
+        check_date = current_date - timedelta(days=days_back)
+        check_datetime = datetime.combine(check_date, time(12, 0))  # Noon
+        check_datetime = CENTRAL_TZ.localize(check_datetime)
+        
+        # Get day of week (0=Monday, 6=Sunday)
+        weekday = check_datetime.weekday()
+        
+        # Check if it's a weekday (not Saturday=5 or Sunday=6)
+        if weekday >= 5:  # Weekend
+            continue
+            
+        # Check if it's a holiday
+        if is_market_holiday(check_datetime):
+            continue
+        
+        # Found a trading day
+        return check_date
+    
+    # Fallback: if we somehow didn't find a trading day in the past week,
+    # return today (shouldn't happen in practice)
+    return current_date

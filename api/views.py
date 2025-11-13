@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from .models import Ticker, AnalysisRun, NewsArticle, TickerContribution
 from .serializers import AnalysisRunSerializer, TickerSerializer, TickerContributionSerializer
-from api.utils.market_hours import get_market_status
+from api.utils.market_hours import get_market_status, get_current_trading_day
 
 
 @api_view(['GET'])
@@ -398,19 +398,19 @@ def dashboard_data(request):
 @api_view(['GET'])
 def news_articles(request):
     """
-    Get news articles from the last 24 hours
+    Get news articles from the current trading day
     Returns articles with sentiment analysis for the frontend news display
+    If weekend/holiday, shows most recent trading day (typically Friday)
     """
     try:
         from django.utils import timezone
-        from datetime import timedelta
 
-        # Get articles from the last 24 hours
-        cutoff_time = timezone.now() - timedelta(hours=24)
+        # Get the current trading day (today if Mon-Fri, otherwise most recent Friday)
+        trading_day = get_current_trading_day()
         
-        # Fetch all news articles from the last day, ordered by most recent first
+        # Fetch all news articles from the current trading day, ordered by most recent first
         articles = NewsArticle.objects.filter(
-            published_at__gte=cutoff_time
+            published_at__date=trading_day
         ).select_related('ticker').order_by('-published_at')
 
         # Helper function to convert sentiment score to label
@@ -460,7 +460,8 @@ def news_articles(request):
         return Response({
             'articles': articles_data,
             'count': len(articles_data),
-            'timeframe': 'last_24_hours'
+            'timeframe': 'current_trading_day',
+            'trading_day': trading_day.isoformat()
         }, status=status.HTTP_200_OK)
 
     except Exception as e:
