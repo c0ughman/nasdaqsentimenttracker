@@ -1,9 +1,9 @@
 """
 NASDAQ Sentiment Tracker Configuration
-Top 20 NASDAQ stocks by market cap (as of 2025) with approximate weights
+Top 15 NASDAQ stocks by market cap (as of 2025) with approximate weights
 """
 
-# Top 20 NASDAQ stocks with market cap weights (normalized to sum to 1.0)
+# Top 15 NASDAQ stocks with market cap weights (normalized to sum to 1.0)
 # These weights represent approximate market cap percentage within NASDAQ
 NASDAQ_TOP_20 = {
     'AAPL': 0.120,  # Apple Inc.
@@ -21,11 +21,6 @@ NASDAQ_TOP_20 = {
     'ADBE': 0.025,  # Adobe Inc.
     'PEP': 0.024,   # PepsiCo Inc.
     'CSCO': 0.023,  # Cisco Systems Inc.
-    'TMUS': 0.022,  # T-Mobile US Inc.
-    'INTC': 0.021,  # Intel Corporation
-    'CMCSA': 0.020, # Comcast Corporation
-    'QCOM': 0.019,  # QUALCOMM Incorporated
-    'INTU': 0.018,  # Intuit Inc.
 }
 
 # Normalize weights to sum to exactly 1.0
@@ -49,11 +44,6 @@ COMPANY_NAMES = {
     'ADBE': 'Adobe Inc.',
     'PEP': 'PepsiCo Inc.',
     'CSCO': 'Cisco Systems Inc.',
-    'TMUS': 'T-Mobile US Inc.',
-    'INTC': 'Intel Corporation',
-    'CMCSA': 'Comcast Corporation',
-    'QCOM': 'QUALCOMM Incorporated',
-    'INTU': 'Intuit Inc.',
 }
 
 # Market-moving keywords for general news filtering
