@@ -491,8 +491,8 @@ def fetch_company_news_batch(finnhub_client, tickers, lookback_minutes=5):
                 client = FinlightApi(config=ApiConfig(api_key=FINLIGHT_API_KEY))
                 finlight_count = 0
                 
-                # Pagination: fetch up to 2 pages to avoid rate limits (reduced from 3)
-                for page_num in range(1, 3):
+                # Pagination: fetch up to 3 pages for maximum coverage
+                for page_num in range(1, 4):
                     try:
                         params = GetArticlesParams(query=query, language="en", page=page_num)
                         response = client.articles.fetch_articles(params=params)
@@ -547,7 +547,7 @@ def fetch_company_news_batch(finnhub_client, tickers, lookback_minutes=5):
                             finlight_count += 1
                         
                         # Small delay between page requests
-                        if page_num < 2:
+                        if page_num < 3:
                             time.sleep(0.1)
                     
                     except Exception as page_error:
@@ -660,15 +660,12 @@ def fetch_general_market_news(finnhub_client):
             client = FinlightApi(config=ApiConfig(api_key=FINLIGHT_API_KEY))
             finlight_count = 0
             
-            # Pagination: fetch up to 2 pages to avoid rate limits (reduced from 3)
-            for page_num in range(1, 3):
-                try:
-                    params = GetArticlesParams(query=query, language="en", page=page_num)
-                    response = client.articles.fetch_articles(params=params)
-                    
-                    if not response or not hasattr(response, 'articles') or not response.articles:
-                        break  # No more articles, stop pagination
-                    
+            # Single page fetch to avoid rate limiting (reduced from 3 pages)
+            try:
+                params = GetArticlesParams(query=query, language="en", page=1)
+                response = client.articles.fetch_articles(params=params)
+                
+                if response and hasattr(response, 'articles') and response.articles:
                     for article in response.articles:
                         # Extract and validate article data
                         headline = getattr(article, 'title', '')
@@ -729,14 +726,10 @@ def fetch_general_market_news(finnhub_client):
                             'article_type': 'market_general'
                         })
                         finlight_count += 1
-                    
-                    # Small delay between page requests
-                    if page_num < 2:
-                        time.sleep(0.1)
                 
-                except Exception as page_error:
-                    # If a page fails, log but continue with what we have
-                    break
+            except Exception as page_error:
+                # If fetch fails, log but continue without Finlight data
+                pass
             
             if finlight_count > 0:
                 print(f"  ✓ Added {finlight_count} Finlight market articles")
