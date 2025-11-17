@@ -475,101 +475,118 @@ def fetch_company_news_batch(finnhub_client, tickers, lookback_minutes=5):
         except Exception as e:
             print(f"❌ FinnHub Error: {e}", end='')
         
-        # 2. Fetch from Finlight (if available) - with pagination
-        if FINLIGHT_API_KEY:
-            try:
-                from finlight_client import FinlightApi, ApiConfig
-                from finlight_client.models import GetArticlesParams
-                
-                # Get company name for query
-                company_name = COMPANY_NAMES.get(ticker, ticker)
-                company_base_name = company_name.split()[0]  # e.g., "Apple" from "Apple Inc."
-                
-                # Comprehensive query: ticker OR (company AND relevant terms)
-                query = f'ticker:{ticker} OR ({company_base_name} AND (stock OR earnings OR market OR shares))'
-                
-                client = FinlightApi(config=ApiConfig(api_key=FINLIGHT_API_KEY))
-                finlight_count = 0
-                
-                # Pagination: fetch up to 3 pages for maximum coverage
-                for page_num in range(1, 4):
-                    try:
-                        params = GetArticlesParams(query=query, language="en", page=page_num)
-                        response = client.articles.fetch_articles(params=params)
-                        
-                        if not response or not hasattr(response, 'articles') or not response.articles:
-                            break  # No more articles, stop pagination
-                        
-                        for article in response.articles:
-                            # Extract and validate article data
-                            headline = getattr(article, 'title', '')
-                            summary = getattr(article, 'summary', '') or getattr(article, 'content', '')
-                            
-                            if not headline or not summary:
-                                continue
-                            
-                            # Parse publish date
-                            publish_date = getattr(article, 'publishDate', None)
-                            published_timestamp = None
-                            
-                            if publish_date:
-                                try:
-                                    if isinstance(publish_date, (int, float)):
-                                        published_timestamp = int(publish_date)
-                                    elif isinstance(publish_date, str):
-                                        dt = datetime.fromisoformat(publish_date.replace('Z', '+00:00'))
-                                        published_timestamp = int(dt.timestamp())
-                                    elif hasattr(publish_date, 'timestamp'):
-                                        published_timestamp = int(publish_date.timestamp())
-                                except Exception:
-                                    pass
-                            
-                            # Filter by lookback window (only keep recent articles)
-                            if published_timestamp:
-                                # Skip articles older than our lookback window
-                                if published_timestamp < from_timestamp:
-                                    continue
-                                article_date = datetime.fromtimestamp(published_timestamp).date()
-                                if article_date != trading_day:
-                                    continue  # Skip articles not from current trading day
-                            else:
-                                # If no valid timestamp, use current time (will pass filter)
-                                published_timestamp = int(time.time())
-                            
-                            # Add Finlight article in FinnHub-compatible format
-                            ticker_articles.append({
-                                'headline': headline,
-                                'summary': summary[:500],
-                                'source': getattr(article, 'source', 'Finlight'),
-                                'url': getattr(article, 'link', ''),
-                                'datetime': published_timestamp
-                            })
-                            finlight_count += 1
-                        
-                        # Small delay between page requests
-                        if page_num < 3:
-                            time.sleep(0.1)
-                    
-                    except Exception as page_error:
-                        # If a page fails, log but continue with what we have
-                        break
-                
-                if finlight_count > 0:
-                    print(f" + {finlight_count} Finlight", end='')
-                
-            except ImportError:
-                pass  # Finlight client not installed, skip silently
-            except Exception as e:
-                # Log warning but don't break the pipeline
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Finlight fetch failed for {ticker}: {e}")
-        
-        print(f" → Total: {len(ticker_articles)}")
+        print(f" → FinnHub: {len(ticker_articles)}")
         all_news[ticker] = ticker_articles
     
     total_articles = sum(len(articles) for articles in all_news.values())
-    print(f"✅ Total company news articles fetched: {total_articles}")
+    print(f"✅ Total FinnHub articles fetched: {total_articles}")
+    
+    # 2. Fetch ALL news from Finlight in ONE unified request
+    if FINLIGHT_API_KEY:
+        try:
+            from finlight_client import FinlightApi, ApiConfig
+            from finlight_client.models import GetArticlesParams
+            
+            print(f"\n🔦 Fetching Finlight news (unified query for all tickers)...")
+            
+            # Build unified query for all tickers + NASDAQ exchange
+            ticker_queries = ' OR '.join([f'ticker:{ticker}' for ticker in tickers])
+            query = f'({ticker_queries}) OR exchange:XNAS'
+            
+            client = FinlightApi(config=ApiConfig(api_key=FINLIGHT_API_KEY))
+            params = GetArticlesParams(query=query, language="en", page=1)
+            response = client.articles.fetch_articles(params=params)
+            
+            if response and hasattr(response, 'articles') and response.articles:
+                print(f"  Received {len(response.articles)} Finlight articles")
+                finlight_categorized = 0
+                finlight_market = 0
+                
+                for article in response.articles:
+                    # Extract and validate article data
+                    headline = getattr(article, 'title', '')
+                    summary = getattr(article, 'summary', '') or getattr(article, 'content', '')
+                    
+                    if not headline or not summary:
+                        continue
+                    
+                    # Parse publish date
+                    publish_date = getattr(article, 'publishDate', None)
+                    published_timestamp = None
+                    
+                    if publish_date:
+                        try:
+                            if isinstance(publish_date, (int, float)):
+                                published_timestamp = int(publish_date)
+                            elif isinstance(publish_date, str):
+                                dt = datetime.fromisoformat(publish_date.replace('Z', '+00:00'))
+                                published_timestamp = int(dt.timestamp())
+                            elif hasattr(publish_date, 'timestamp'):
+                                published_timestamp = int(publish_date.timestamp())
+                        except Exception:
+                            pass
+                    
+                    # Filter by lookback window (only keep recent articles)
+                    if published_timestamp:
+                        # Skip articles older than our lookback window
+                        if published_timestamp < from_timestamp:
+                            continue
+                        article_date = datetime.fromtimestamp(published_timestamp).date()
+                        if article_date != trading_day:
+                            continue  # Skip articles not from current trading day
+                    else:
+                        # If no valid timestamp, use current time (will pass filter)
+                        published_timestamp = int(time.time())
+                    
+                    # Convert to FinnHub-compatible format
+                    article_dict = {
+                        'headline': headline,
+                        'summary': summary[:500],
+                        'source': getattr(article, 'source', 'Finlight'),
+                        'url': getattr(article, 'link', ''),
+                        'datetime': published_timestamp
+                    }
+                    
+                    # Categorize by ticker using 'companies' field
+                    companies = getattr(article, 'companies', [])
+                    categorized = False
+                    
+                    if companies and len(companies) > 0:
+                        # Get first ticker mentioned
+                        first_company = companies[0]
+                        if hasattr(first_company, 'ticker'):
+                            first_ticker = first_company.ticker
+                        elif isinstance(first_company, dict):
+                            first_ticker = first_company.get('ticker', '')
+                        else:
+                            first_ticker = ''
+                        
+                        # Add to ticker's articles if it's in our tracked tickers
+                        if first_ticker in all_news:
+                            all_news[first_ticker].append(article_dict)
+                            finlight_categorized += 1
+                            categorized = True
+                    
+                    # Fallback: if not categorized, it's general market news (skip it)
+                    if not categorized:
+                        finlight_market += 1
+                
+                print(f"  ✅ Categorized: {finlight_categorized} articles")
+                print(f"  📊 General market: {finlight_market} articles (not categorized)")
+            else:
+                print(f"  ⚠️  No Finlight articles returned")
+        
+        except ImportError:
+            print(f"  ℹ️  Finlight client not installed - skipping")
+        except Exception as e:
+            # Log warning but don't break the pipeline
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Unified Finlight fetch failed: {e}")
+            print(f"  ⚠️  Finlight error: {e}")
+    
+    total_articles = sum(len(articles) for articles in all_news.values())
+    print(f"✅ Total articles (FinnHub + Finlight): {total_articles}")
     
     return all_news
 
@@ -647,100 +664,6 @@ def fetch_general_market_news(finnhub_client):
 
         except Exception as e:
             print(f"  ⚠️  FinnHub {category} Error: {e}")
-
-    # 2. Fetch from Finlight (if available) - with pagination
-    if FINLIGHT_API_KEY:
-        try:
-            from finlight_client import FinlightApi, ApiConfig
-            from finlight_client.models import GetArticlesParams
-            
-            # Comprehensive query for broader market news
-            query = 'exchange:XNAS OR NASDAQ OR (stock market) OR (tech stocks) OR (market trends)'
-            
-            client = FinlightApi(config=ApiConfig(api_key=FINLIGHT_API_KEY))
-            finlight_count = 0
-            
-            # Single page fetch to avoid rate limiting (reduced from 3 pages)
-            try:
-                params = GetArticlesParams(query=query, language="en", page=1)
-                response = client.articles.fetch_articles(params=params)
-                
-                if response and hasattr(response, 'articles') and response.articles:
-                    for article in response.articles:
-                        # Extract and validate article data
-                        headline = getattr(article, 'title', '')
-                        summary = getattr(article, 'summary', '') or getattr(article, 'content', '')
-                        
-                        if not headline or not summary:
-                            continue
-                        
-                        # Parse publish date
-                        publish_date = getattr(article, 'publishDate', None)
-                        published_timestamp = None
-                        
-                        if publish_date:
-                            try:
-                                if isinstance(publish_date, (int, float)):
-                                    published_timestamp = int(publish_date)
-                                elif isinstance(publish_date, str):
-                                    dt = datetime.fromisoformat(publish_date.replace('Z', '+00:00'))
-                                    published_timestamp = int(dt.timestamp())
-                                elif hasattr(publish_date, 'timestamp'):
-                                    published_timestamp = int(publish_date.timestamp())
-                            except Exception:
-                                pass
-                        
-                        # Filter by lookback window (only keep recent articles)
-                        if published_timestamp:
-                            # Skip articles older than our lookback window
-                            if published_timestamp < from_timestamp:
-                                continue
-                            article_date = datetime.fromtimestamp(published_timestamp).date()
-                            if article_date != trading_day:
-                                continue  # Skip articles not from current trading day
-                        else:
-                            # If no valid timestamp, use current time (will pass filter)
-                            published_timestamp = int(time.time())
-                        
-                        # Check if article is relevant (same filtering as FinnHub)
-                        combined_text = f"{headline} {summary}".lower()
-                        has_market_keyword = any(
-                            keyword in combined_text
-                            for keyword in MARKET_MOVING_KEYWORDS
-                        )
-                        has_exclude_keyword = any(
-                            keyword in combined_text
-                            for keyword in EXCLUDE_KEYWORDS
-                        )
-                        
-                        if not has_market_keyword or has_exclude_keyword:
-                            continue  # Skip non-relevant articles
-                        
-                        # Add Finlight article in FinnHub-compatible format
-                        relevant_news.append({
-                            'headline': headline,
-                            'summary': summary[:500],
-                            'source': getattr(article, 'source', 'Finlight'),
-                            'url': getattr(article, 'link', ''),
-                            'datetime': published_timestamp,
-                            'article_type': 'market_general'
-                        })
-                        finlight_count += 1
-                
-            except Exception as page_error:
-                # If fetch fails, log but continue without Finlight data
-                pass
-            
-            if finlight_count > 0:
-                print(f"  ✓ Added {finlight_count} Finlight market articles")
-            
-        except ImportError:
-            pass  # Finlight client not installed, skip silently
-        except Exception as e:
-            # Log warning but don't break the pipeline
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Finlight market news fetch failed: {e}")
 
     print(f"✅ Total market news articles: {len(relevant_news)}")
     return relevant_news
