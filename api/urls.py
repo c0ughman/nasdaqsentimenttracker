@@ -10,4 +10,6 @@ urlpatterns = [
     path('nasdaq/historical-data/', views.nasdaq_historical_data, name='nasdaq_historical_data'),
     path('dashboard/', views.dashboard_data, name='dashboard_data'),  # New endpoint for nasdaq.html
     path('news/', views.news_articles, name='news_articles'),  # News articles endpoint for frontend
+    path('second-candles/', views.second_candles_data, name='second_candles'),  # 1-second OHLCV data
+    path('tick-candles/', views.tick_candles_data, name='tick_candles'),  # 100-tick OHLCV data
 ]

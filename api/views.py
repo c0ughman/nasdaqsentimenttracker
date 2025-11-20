@@ -3,9 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.conf import settings
-from .models import Ticker, AnalysisRun, NewsArticle, TickerContribution
+from .models import Ticker, AnalysisRun, NewsArticle, TickerContribution, SecondSnapshot, TickCandle100
 from .serializers import AnalysisRunSerializer, TickerSerializer, TickerContributionSerializer
 from api.utils.market_hours import get_market_status, get_current_trading_day
+from datetime import datetime, timedelta
+from django.utils import timezone
 
 
 @api_view(['GET'])
@@ -544,3 +546,173 @@ def nasdaq_historical_data(request):
             'error': 'Invalid timeframe parameter',
             'message': 'Timeframe must be a valid integer (minutes)'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def second_candles_data(request):
+    """
+    Returns 1-second OHLCV candles for granular chart display
+    Default: Last 1 hour of completed candles
+    Query params:
+        - symbol: Ticker symbol (default: QLD)
+        - start_time: ISO format timestamp (optional)
+        - end_time: ISO format timestamp (optional)
+        - limit: Max records to return (default: 10000)
+    """
+    try:
+        # Get query parameters
+        symbol = request.GET.get('symbol', 'QLD').upper()
+        limit = int(request.GET.get('limit', 10000))
+        
+        # Get ticker
+        ticker = get_object_or_404(Ticker, symbol=symbol)
+        
+        # Determine time range
+        if request.GET.get('start_time') and request.GET.get('end_time'):
+            try:
+                start_time = datetime.fromisoformat(request.GET.get('start_time').replace('Z', '+00:00'))
+                end_time = datetime.fromisoformat(request.GET.get('end_time').replace('Z', '+00:00'))
+            except ValueError:
+                return Response({
+                    'error': 'Invalid time format',
+                    'message': 'Use ISO format: YYYY-MM-DDTHH:MM:SSZ'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Default: last 1 hour
+            end_time = timezone.now()
+            start_time = end_time - timedelta(hours=1)
+        
+        # Query second snapshots (only completed candles, exclude forming ones)
+        candles = SecondSnapshot.objects.filter(
+            ticker=ticker,
+            timestamp__gte=start_time,
+            timestamp__lt=end_time  # Use __lt to exclude the current forming second
+        ).order_by('timestamp')[:limit]
+        
+        # Format response data
+        data = []
+        for candle in candles:
+            data.append({
+                'timestamp': candle.timestamp.isoformat(),
+                'open': float(candle.ohlc_1sec_open),
+                'high': float(candle.ohlc_1sec_high),
+                'low': float(candle.ohlc_1sec_low),
+                'close': float(candle.ohlc_1sec_close),
+                'volume': candle.ohlc_1sec_volume,
+                'tick_count': candle.ohlc_1sec_tick_count
+            })
+        
+        return Response({
+            'ticker': symbol,
+            'data': data,
+            'metadata': {
+                'count': len(data),
+                'start_time': start_time.isoformat(),
+                'end_time': end_time.isoformat(),
+                'timeframe': '1s',
+                'limit': limit
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Ticker.DoesNotExist:
+        return Response({
+            'error': 'Ticker not found',
+            'message': f'Ticker {symbol} not found in database'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        return Response({
+            'error': 'Invalid parameter',
+            'message': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'error': 'Server error',
+            'message': 'An error occurred while fetching second candles data'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def tick_candles_data(request):
+    """
+    Returns 100-tick OHLCV candles for granular chart display
+    Default: Last 1 hour of completed candles
+    Query params:
+        - symbol: Ticker symbol (default: QLD)
+        - start_time: ISO format timestamp (optional)
+        - end_time: ISO format timestamp (optional)
+        - limit: Max records to return (default: 10000)
+    """
+    try:
+        # Get query parameters
+        symbol = request.GET.get('symbol', 'QLD').upper()
+        limit = int(request.GET.get('limit', 10000))
+        
+        # Get ticker
+        ticker = get_object_or_404(Ticker, symbol=symbol)
+        
+        # Determine time range
+        if request.GET.get('start_time') and request.GET.get('end_time'):
+            try:
+                start_time = datetime.fromisoformat(request.GET.get('start_time').replace('Z', '+00:00'))
+                end_time = datetime.fromisoformat(request.GET.get('end_time').replace('Z', '+00:00'))
+            except ValueError:
+                return Response({
+                    'error': 'Invalid time format',
+                    'message': 'Use ISO format: YYYY-MM-DDTHH:MM:SSZ'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Default: last 1 hour
+            end_time = timezone.now()
+            start_time = end_time - timedelta(hours=1)
+        
+        # Query 100-tick candles (only completed candles)
+        candles = TickCandle100.objects.filter(
+            ticker=ticker,
+            completed_at__gte=start_time,
+            completed_at__lte=end_time
+        ).order_by('completed_at')[:limit]
+        
+        # Format response data
+        data = []
+        for candle in candles:
+            data.append({
+                'timestamp': candle.completed_at.isoformat(),
+                'open': float(candle.open),
+                'high': float(candle.high),
+                'low': float(candle.low),
+                'close': float(candle.close),
+                'volume': candle.total_volume,
+                'candle_number': candle.candle_number,
+                'tick_count': 100,
+                'duration_seconds': candle.duration_seconds,
+                'first_tick_time': candle.first_tick_time.isoformat(),
+                'last_tick_time': candle.last_tick_time.isoformat()
+            })
+        
+        return Response({
+            'ticker': symbol,
+            'data': data,
+            'metadata': {
+                'count': len(data),
+                'start_time': start_time.isoformat(),
+                'end_time': end_time.isoformat(),
+                'timeframe': '100tick',
+                'limit': limit
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Ticker.DoesNotExist:
+        return Response({
+            'error': 'Ticker not found',
+            'message': f'Ticker {symbol} not found in database'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        return Response({
+            'error': 'Invalid parameter',
+            'message': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'error': 'Server error',
+            'message': 'An error occurred while fetching tick candles data'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
