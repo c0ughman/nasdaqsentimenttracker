@@ -11,6 +11,6 @@ collector: python manage.py run_websocket_collector_v2
 # Analyzes news, Reddit, technical indicators, and creates composite scores
 analysis: python manage.py run_nasdaq_sentiment
 
-# Optional: Web server (if you have Django admin/API endpoints)
-web: gunicorn backend.wsgi --bind 0.0.0.0:$PORT
+# Web server (runs migrations on startup, then starts Gunicorn)
+web: bash railway-start.sh
 
