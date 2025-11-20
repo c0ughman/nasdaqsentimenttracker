@@ -259,11 +259,17 @@ class Command(BaseCommand):
     
     def aggregation_loop(self):
         """Run every second on the dot to create 1-second candles"""
+        self.stdout.write(self.style.SUCCESS('🔄 Aggregation loop started'))
+        
         # Calculate next second boundary
         now = time.time()
         next_second = int(now) + 1  # Next whole second
         
+        loop_count = 0
         while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
+            loop_count += 1
+            if loop_count % 10 == 0:  # Log every 10 seconds
+                self.stdout.write(f'🔄 Aggregation loop iteration #{loop_count}')
             # Sleep until next second boundary
             now = time.time()
             sleep_time = next_second - now
@@ -349,6 +355,10 @@ class Command(BaseCommand):
                 self.tick_buffer_1sec[tick_second] = []
             self.tick_buffer_1sec[tick_second].append(tick)
             
+            # DEBUG: Log first tick added to each second
+            if self.verbose and len(self.tick_buffer_1sec[tick_second]) == 1:
+                self.stdout.write(f'🆕 First tick added to second {tick_second} ({dt.strftime("%H:%M:%S")})')
+            
             self.tick_buffer_100tick.append(tick)
             self.tick_counter_100 += 1
             self.total_ticks += 1
@@ -397,11 +407,18 @@ class Command(BaseCommand):
             # Already created, skip
             return
         
+        # DEBUG: Log buffer state
+        if self.verbose:
+            buffer_keys = list(self.tick_buffer_1sec.keys())
+            self.stdout.write(f'🔍 Checking second {second_timestamp}, buffer has keys: {buffer_keys}, ticks count: {len(ticks)}')
+        
         try:
             if not ticks:
-                # No ticks for this second - create empty candle or skip
-                # Option: Create with last known price, or skip entirely
-                # For now, skip seconds with no ticks
+                # No ticks for this second - log warning and skip
+                if self.total_1sec_candles % 10 == 0:  # Log occasionally
+                    self.stdout.write(self.style.WARNING(
+                        f'⚠️  No ticks for second {timestamp.strftime("%H:%M:%S")} (ts={second_timestamp}), skipping'
+                    ))
                 return
             
             # Calculate OHLCV from ticks
