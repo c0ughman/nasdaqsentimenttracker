@@ -69,8 +69,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--symbol',
             type=str,
-            default='QQQ',
-            help='Symbol to track (default: QQQ for NASDAQ-100 ETF)'
+            default='QLD',
+            help='Symbol to track (default: QLD for NASDAQ-100 2x Leveraged ETF)'
         )
         parser.add_argument(
             '--verbose',
@@ -97,8 +97,8 @@ class Command(BaseCommand):
         
         # Get or create ticker
         self.ticker, _ = Ticker.objects.get_or_create(
-            symbol='QQQ',
-            defaults={'company_name': 'Invesco QQQ Trust (NASDAQ-100 ETF)'}
+            symbol='QLD',
+            defaults={'company_name': 'ProShares Ultra QQQ (2x Leveraged NASDAQ-100 ETF)'}
         )
         
         # Signal handlers

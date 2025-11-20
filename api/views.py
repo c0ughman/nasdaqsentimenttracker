@@ -114,8 +114,8 @@ def nasdaq_composite_score(request):
     Returns the latest composite score for the NASDAQ index
     """
     try:
-        # Get the NASDAQ ticker (QQQ - NASDAQ-100 ETF)
-        nasdaq_ticker = get_object_or_404(Ticker, symbol='QQQ')
+        # Get the NASDAQ ticker (QLD - NASDAQ-100 2x Leveraged ETF)
+        nasdaq_ticker = get_object_or_404(Ticker, symbol='QLD')
         
         # Get the most recent analysis run for NASDAQ
         latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()
@@ -154,7 +154,7 @@ def nasdaq_composite_score(request):
     except Ticker.DoesNotExist:
         return Response({
             'error': 'NASDAQ ticker not found',
-            'message': 'NASDAQ-100 ETF ticker (QQQ) not found in database'
+            'message': 'NASDAQ-100 2x Leveraged ETF ticker (QLD) not found in database'
         }, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -165,8 +165,8 @@ def dashboard_data(request):
     Returns everything needed: composite score, 3 drivers, historical data
     """
     try:
-        # Get the NASDAQ ticker (QQQ - NASDAQ-100 ETF)
-        nasdaq_ticker = get_object_or_404(Ticker, symbol='QQQ')
+        # Get the NASDAQ ticker (QLD - NASDAQ-100 2x Leveraged ETF)
+        nasdaq_ticker = get_object_or_404(Ticker, symbol='QLD')
 
         # Get the most recent analysis run
         latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()
@@ -384,7 +384,7 @@ def dashboard_data(request):
     except Ticker.DoesNotExist:
         return Response({
             'error': 'NASDAQ ticker not found',
-            'message': 'NASDAQ-100 ETF ticker (QQQ) not found in database'
+            'message': 'NASDAQ-100 2x Leveraged ETF ticker (QLD) not found in database'
         }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         # Catch all other exceptions and log them
@@ -492,8 +492,8 @@ def nasdaq_historical_data(request):
         # Get timeframe parameter (default to 240 minutes = 4 hours)
         timeframe_minutes = int(request.GET.get('timeframe', 240))
         
-        # Get the NASDAQ ticker (QQQ - NASDAQ-100 ETF)
-        nasdaq_ticker = get_object_or_404(Ticker, symbol='QQQ')
+        # Get the NASDAQ ticker (QLD - NASDAQ-100 2x Leveraged ETF)
+        nasdaq_ticker = get_object_or_404(Ticker, symbol='QLD')
         
         # Get historical analysis runs within the timeframe
         from django.utils import timezone
@@ -536,7 +536,7 @@ def nasdaq_historical_data(request):
     except Ticker.DoesNotExist:
         return Response({
             'error': 'NASDAQ ticker not found',
-            'message': 'NASDAQ-100 ETF ticker (QQQ) not found in database'
+            'message': 'NASDAQ-100 2x Leveraged ETF ticker (QLD) not found in database'
         }, status=status.HTTP_404_NOT_FOUND)
     except ValueError:
         return Response({

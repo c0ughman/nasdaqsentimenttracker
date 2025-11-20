@@ -14,7 +14,7 @@ from ta.volatility import BollingerBands, AverageTrueRange
 import yfinance as yf
 
 
-def fetch_latest_ohlcv_from_yfinance(symbol='QQQ', interval='1m'):
+def fetch_latest_ohlcv_from_yfinance(symbol='QLD', interval='1m'):
     """
     Fetch the most recent OHLCV candle from Yahoo Finance.
 
@@ -103,7 +103,7 @@ def fetch_vxn_price():
         return None
 
 
-def fetch_latest_ohlcv_from_websocket_db(symbol='QQQ', window_seconds=60):
+def fetch_latest_ohlcv_from_websocket_db(symbol='QLD', window_seconds=60):
     """
     Aggregate 1-minute OHLCV candle from SecondSnapshot data (1-second candles).
     
@@ -175,7 +175,7 @@ def fetch_latest_ohlcv_from_websocket_db(symbol='QQQ', window_seconds=60):
         return None
 
 
-def fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m'):
+def fetch_latest_ohlcv_with_fallback(symbol='QLD', interval='1m'):
     """
     Fetch latest OHLCV with intelligent fallback chain:
     1. Try WebSocket database (real-time second-by-second data aggregated)
@@ -213,7 +213,7 @@ def fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m'):
     return None
 
 
-def fetch_ohlcv_data_from_db(ticker_symbol='QQQ', hours_back=24):
+def fetch_ohlcv_data_from_db(ticker_symbol='QLD', hours_back=24):
     """
     Fetch OHLCV (Open, High, Low, Close, Volume) data from our database.
 
@@ -411,7 +411,7 @@ def calculate_all_indicators(symbol, resolution='5', hours_back=24, config=None)
     print(f"\n📊 Calculating technical indicators from database history...")
 
     # Fetch OHLCV data from our database
-    df = fetch_ohlcv_data_from_db(ticker_symbol='QQQ', hours_back=hours_back)
+    df = fetch_ohlcv_data_from_db(ticker_symbol='QLD', hours_back=hours_back)
 
     if df is None or len(df) == 0:
         print(f"  ❌ No data available for {symbol}")
@@ -532,7 +532,7 @@ def fetch_indicators_with_fallback(symbols=None, resolution='5', hours_back=24, 
         Tuple of (indicators_dict, 'database')
     """
     indicators = calculate_all_indicators(
-        symbol='QQQ',  # Always use QQQ from database
+        symbol='QLD',  # Always use QLD from database
         resolution=resolution,
         hours_back=hours_back,
         config=config
