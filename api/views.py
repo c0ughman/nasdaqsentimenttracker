@@ -165,8 +165,9 @@ def dashboard_data(request):
     Returns everything needed: composite score, 3 drivers, historical data
     """
     try:
-        # Get the NASDAQ ticker (QLD - NASDAQ-100 2x Leveraged ETF)
-        nasdaq_ticker = get_object_or_404(Ticker, symbol='QLD')
+        # TEMPORARY: Get the NASDAQ ticker from QQQ (for testing old data)
+        # TODO: Switch back to 'QLD' once new analysis runs are completed
+        nasdaq_ticker = get_object_or_404(Ticker, symbol='QQQ')
 
         # Get the most recent analysis run
         latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()

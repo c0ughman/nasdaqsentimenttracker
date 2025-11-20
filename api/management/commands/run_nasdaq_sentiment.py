@@ -1095,14 +1095,14 @@ def run_nasdaq_composite_analysis(finnhub_client):
     
     # Step 1: Initialize or get NASDAQ composite ticker
     nasdaq_ticker, created = Ticker.objects.get_or_create(
-        symbol='QQQ',
+        symbol='QLD',
         defaults={
-            'company_name': 'Invesco QQQ Trust (NASDAQ-100 ETF)',
+            'company_name': 'ProShares Ultra QQQ (2x Leveraged NASDAQ-100 ETF)',
             'exchange': 'NASDAQ'
         }
     )
     if created:
-        print(f"✨ Created QQQ ticker: QQQ")
+        print(f"✨ Created QLD ticker: QLD")
     
     # Step 2: Initialize all component tickers
     print(f"\n📊 Initializing {len(NASDAQ_TOP_20)} component tickers...")
