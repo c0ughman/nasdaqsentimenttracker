@@ -1,110 +1,151 @@
-# News Sentiment Analysis - Commit Investigation
+# 📰 News Sentiment Deep Dive Analysis
 
-## Summary
+**Generated:** 2025-11-08 12:37:25
 
-**Current HEAD:** `db36aa9` (Update start.sh - Oct 28, 2025)  
-**Result:** NO commits found after the current HEAD that were reverted.
+---
 
-All commits in the repository are accounted for, and there are no missing or reverted commits.
+## 🎯 Analysis Goals
 
-## News Sentiment Calculation Methods
+1. Compare news sentiment between Thursday/Friday vs earlier in the week
+2. Identify if news sentiment has predictive power
+3. Compare news vs technical vs composite indicators
+4. Discover best news-based trading patterns
 
-### Current Implementation (run_nasdaq_sentiment.py)
+---
 
-The current news sentiment analysis uses **ARTICLE_WEIGHTS**:
+## 📊 Daily News Sentiment Comparison
 
-```python
-ARTICLE_WEIGHTS = {
-    'base_sentiment': 0.40,      # 40%
-    'surprise_factor': 0.25,     # 25%
-    'novelty': 0.15,             # 15%
-    'source_credibility': 0.10,  # 10%
-    'recency': 0.10              # 10%
-}
-```
+| Day | Records | Avg News | Std | News UP Changes | News DOWN Changes |
+|-----|---------|----------|-----|-----------------|-------------------|
+| Monday | 809 | 20.41 | 23.74 | 31 | 345 |
+| Tuesday | 445 | 36.18 | 22.15 | 25 | 355 |
+| Wednesday | 450 | 39.61 | 15.15 | 29 | 412 |
+| Thursday | 449 | 37.80 | 21.66 | 27 | 365 |
+| Friday | 431 | 1.53 | 39.67 | 163 | 198 |
 
-**Article Score Formula:**
-```python
-article_score = (
-    base_sentiment * ARTICLE_WEIGHTS['base_sentiment'] * 100 +
-    (surprise_factor - 1) * ARTICLE_WEIGHTS['surprise_factor'] * 50 +
-    novelty_score * ARTICLE_WEIGHTS['novelty'] * 30 +
-    source_credibility * ARTICLE_WEIGHTS['source_credibility'] * 20 +
-    recency_weight * ARTICLE_WEIGHTS['recency'] * 20
-)
-```
 
-**Location:** `backend/api/management/commands/run_nasdaq_sentiment.py`
+### Statistical Test: Mon-Wed vs Thu/Fri
 
-### Older Implementation (run_sentiment_analysis.py)
+- **Mon-Wed Avg News Sentiment**: 29.60
+- **Thu/Fri Avg News Sentiment**: 20.04
+- **Difference**: -9.56
+- **t-statistic**: 8.1066
+- **p-value**: 0.0000
 
-The older script uses the same **WEIGHTS** but with a different calculation method:
+✅ **Statistically Significant Difference!** Thu/Fri news sentiment is different from Mon-Wed.
 
-```python
-WEIGHTS = {
-    'base_sentiment': 0.40,
-    'surprise_factor': 0.25,
-    'novelty': 0.15,
-    'source_credibility': 0.10,
-    'recency': 0.10
-}
-```
+---
 
-**Article Score Formula (different approach):**
-```python
-article_score = (base_sentiment * WEIGHTS['base_sentiment']) * surprise_multiplier
-article_weight = (
-    novelty * WEIGHTS['novelty'] +
-    source_cred * WEIGHTS['source_credibility'] +
-    recency * WEIGHTS['recency']
-)
-weighted_score = article_score * article_weight
-```
+## 🏆 Best News Sentiment Patterns
 
-**Location:** `backend/api/management/commands/run_sentiment_analysis.py`
+Top 10 news-based prediction patterns:
 
-## Key Differences
+| Rank | Pattern | Time | Accuracy | Signals |
+|------|---------|------|----------|---------|
+| 1 | News UP Small | 10min | 87.0% ✅ | 23 |
+| 2 | News UP Small | 25min | 87.0% ✅ | 23 |
+| 3 | News UP Small | 15min | 82.6% ✅ | 23 |
+| 4 | News UP Small | 5min | 60.9% ✅ | 23 |
+| 5 | News DOWN Small | 25min | 57.3% ✅ | 143 |
+| 6 | News UP Medium | 5min | 56.2% ✅ | 16 |
+| 7 | News UP Medium | 10min | 56.2% ✅ | 16 |
+| 8 | News UP Medium | 25min | 56.2% ✅ | 16 |
+| 9 | News DOWN Small | 15min | 53.1% ⚠️ | 143 |
+| 10 | News DOWN Small | 5min | 49.7% ❌ | 143 |
 
-1. **run_nasdaq_sentiment.py** (currently used):
-   - Uses additive formula with specific multipliers for each component
-   - Multiplies base_sentiment by 100, surprise by 50, etc.
-   - More explicit weight distribution
 
-2. **run_sentiment_analysis.py** (older/alternative):
-   - Uses multiplicative approach
-   - Combines base_sentiment with surprise_factor first, then applies other weights
-   - Different mathematical approach
+---
 
-## Commits Related to News Sentiment
+## 📊 News vs Technical vs Composite
 
-From the commit history, **no commits specifically changed the news sentiment calculation formula**. The sentiment logic appears to have been established before the current commit history starts (commit 23a7247 - "Add files via upload" on Oct 22).
+Predictive power comparison at 15-minute horizon:
 
-## Files That Handle News Sentiment
+### Mon-Wed:
 
-1. `backend/api/management/commands/run_nasdaq_sentiment.py` - **Currently Active**
-   - Contains `analyze_article_sentiment()` function
-   - Uses ARTICLE_WEIGHTS configuration
-   - Handles batch processing of news articles
+| Indicator | DOWN Accuracy | (n) | UP Accuracy | (n) |
+|-----------|--------------|-----|------------|-----|
+| News | 46.2% | 1112 | 40.0% | 85 |
+| Technical | 50.3% | 185 | 44.2% | 190 |
+| Composite | 49.4% | 265 | 39.8% | 171 |
 
-2. `backend/api/management/commands/run_sentiment_analysis.py` - **Older Script**
-   - May have been replaced by run_nasdaq_sentiment.py
-   - Uses similar WEIGHTS but different calculation method
-   - Still exists in the codebase
 
-3. `backend/api/models.py`
-   - Contains NewsArticle model
-   - Stores sentiment components (base_sentiment, surprise_factor, novelty_score, etc.)
+### Thu/Fri:
 
-## Conclusion
+| Indicator | DOWN Accuracy | (n) | UP Accuracy | (n) |
+|-----------|--------------|-----|------------|-----|
+| News | 49.2% | 563 | 59.4% | 175 |
+| Technical | 57.6% | 132 | 46.8% | 126 |
+| Composite | 50.9% | 161 | 50.0% | 134 |
 
-- **No commits after db36aa9** were found or reverted
-- The news sentiment calculation appears stable throughout the commit history
-- Two different calculation methods exist in the codebase:
-  - `run_nasdaq_sentiment.py` (current, additive approach)
-  - `run_sentiment_analysis.py` (older, multiplicative approach)
 
-If you're looking for a specific change to news sentiment that you remember making, it's possible:
-1. It was never committed
-2. It was made in a different branch or repository
-3. It was part of the initial commit (23a7247) which added all files
+---
 
+## 💡 Key Insights
+
+### 1. Best Indicator by Period:
+
+- **Mon-Wed**: Technical is best for DOWN predictions (50.3% accuracy)
+- **Thu/Fri**: Technical is best for DOWN predictions (57.6% accuracy)
+
+
+### 2. News Sentiment Patterns:
+
+- News sentiment changes (>0.5 points) occur in **75.5%** of records
+- Most common news bucket: **Small** (664 signals)
+- Best time horizon for news: **25 minutes** (57.6% avg accuracy)
+
+
+### 3. News vs Overall Best Pattern:
+
+- **Best News Pattern**: UP Small @ 10min
+  - Accuracy: 87.0%
+  - Sample size: 23
+
+- **Best Overall Pattern (from previous analysis)**: DOWN Small @ 25min
+  - Accuracy: 55.9%
+  - Sample size: 367
+
+✅ **News-based pattern BEATS overall best!**
+
+### 4. Thursday/Friday vs Mon-Wed:
+
+- Thu/Fri has **statistically significant lower** news sentiment than Mon-Wed
+- This suggests end-of-week patterns may be different
+
+
+---
+
+## 📈 Visualizations
+
+Generated charts in `news_sentiment_charts/`:
+
+1. **1_daily_news_comparison.png** - Daily news sentiment patterns
+2. **2_predictive_power_comparison.png** - News vs Technical vs Composite
+3. **3_news_predictive_heatmap.png** - News accuracy across time horizons
+4. **4_intraday_news_patterns.png** - Minute-by-minute news patterns each day
+5. **5_news_summary.png** - Best news patterns summary
+
+---
+
+## 🚀 Trading Implications
+
+
+### ❌ Composite Score is Better
+
+Composite score (50.0%) outperforms news-only predictions (47.2%).
+
+**Recommendation**: Continue using composite score, news alone is not sufficient.
+
+
+---
+
+## ⚠️ Important Notes
+
+1. **Statistical Significance**: No news patterns are statistically proven (need 30+ days)
+2. **Sample Sizes**: Many news patterns have <20 signals (unreliable)
+3. **News Frequency**: News changes rarely (only 75.5% of records)
+4. **News Lag**: News sentiment may be lagging indicator (processes past events)
+
+---
+
+*Generated: 2025-11-08 12:37:25*

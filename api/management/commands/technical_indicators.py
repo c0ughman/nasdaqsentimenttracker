@@ -14,7 +14,7 @@ from ta.volatility import BollingerBands, AverageTrueRange
 import yfinance as yf
 
 
-def fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m'):
+def fetch_latest_ohlcv_from_yfinance(symbol='QQQ', interval='1m'):
     """
     Fetch the most recent OHLCV candle from Yahoo Finance.
 
@@ -22,10 +22,9 @@ def fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m'):
     - During market hours: Returns the current forming candle
     - After market hours: Returns the last completed candle from market close
     - Uses second-to-last candle to avoid incomplete data
-    - Falls back to previousClose price if no intraday data available
 
     Args:
-        symbol: Ticker symbol (default: '^IXIC' for NASDAQ Composite)
+        symbol: Ticker symbol (default: 'QQQ' for NASDAQ-100 ETF)
         interval: Candle interval ('1m', '5m', etc.)
 
     Returns:
@@ -37,23 +36,7 @@ def fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m'):
         df = ticker.history(period='1d', interval=interval)
 
         if df is None or len(df) == 0:
-            print(f"  ⚠️  No intraday data from Yahoo Finance for {symbol} - trying previousClose")
-            # Fallback to info/previousClose when market is closed
-            try:
-                info = ticker.info
-                prev_close = info.get('previousClose') or info.get('regularMarketPrice')
-                if prev_close:
-                    print(f"  ✓ Using previousClose: ${prev_close:.2f}")
-                    return {
-                        'open': float(prev_close),
-                        'high': float(prev_close),
-                        'low': float(prev_close),
-                        'close': float(prev_close),
-                        'volume': None,
-                        'timestamp': None
-                    }
-            except Exception as e:
-                print(f"  ⚠️  Could not fetch previousClose: {e}")
+            print(f"  ⚠️  No data from Yahoo Finance for {symbol}")
             return None
 
         # Check how many candles we have
@@ -120,12 +103,122 @@ def fetch_vxn_price():
         return None
 
 
-def fetch_ohlcv_data_from_db(ticker_symbol='^IXIC', hours_back=24):
+def fetch_latest_ohlcv_from_websocket_db(symbol='QQQ', window_seconds=60):
+    """
+    Aggregate 1-minute OHLCV candle from SecondSnapshot data (1-second candles).
+    
+    This function reads pre-aggregated 1-second candles from SecondSnapshot table
+    and aggregates them into a 1-minute candle.
+    
+    Args:
+        symbol: Ticker symbol (default: 'QQQ' for NASDAQ-100 ETF)
+        window_seconds: Time window to aggregate in seconds (default: 60 = 1 minute)
+    
+    Returns:
+        Dict with open, high, low, close, volume, timestamp or None if no data available
+    """
+    from api.models import Ticker, SecondSnapshot
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    try:
+        # Get ticker object
+        ticker = Ticker.objects.filter(symbol=symbol).first()
+        if not ticker:
+            print(f"  ⚠️  Ticker {symbol} not found in database")
+            return None
+        
+        # Calculate cutoff time (look back N seconds)
+        cutoff_time = timezone.now() - timedelta(seconds=window_seconds)
+        
+        # Query 1-second candles from the last N seconds
+        snapshots = SecondSnapshot.objects.filter(
+            ticker=ticker,
+            timestamp__gte=cutoff_time
+        ).order_by('timestamp')
+        
+        if not snapshots.exists():
+            print(f"  ⚠️  No SecondSnapshot data in last {window_seconds} seconds")
+            return None
+        
+        snapshot_count = snapshots.count()
+        snapshot_list = list(snapshots)
+        
+        # Aggregate 1-minute OHLCV from 1-second candles
+        open_price = float(snapshot_list[0].ohlc_1sec_open)
+        close_price = float(snapshot_list[-1].ohlc_1sec_close)
+        high_price = max(float(s.ohlc_1sec_high) for s in snapshot_list)
+        low_price = min(float(s.ohlc_1sec_low) for s in snapshot_list)
+        total_volume = sum(s.ohlc_1sec_volume for s in snapshot_list)
+        latest_timestamp = snapshot_list[-1].timestamp
+        
+        ohlcv = {
+            'open': open_price,
+            'high': high_price,
+            'low': low_price,
+            'close': close_price,
+            'volume': total_volume,
+            'timestamp': latest_timestamp
+        }
+        
+        print(f"  ✓ WebSocket OHLCV ({symbol}, {snapshot_count} second-candles aggregated):")
+        print(f"    O={ohlcv['open']:.2f} H={ohlcv['high']:.2f} "
+              f"L={ohlcv['low']:.2f} C={ohlcv['close']:.2f} V={ohlcv['volume']:,}")
+        print(f"    Time window: {cutoff_time.strftime('%H:%M:%S')} - {latest_timestamp.strftime('%H:%M:%S')}")
+        
+        return ohlcv
+    
+    except Exception as e:
+        print(f"  ⚠️  Error aggregating SecondSnapshot data: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m'):
+    """
+    Fetch latest OHLCV with intelligent fallback chain:
+    1. Try WebSocket database (real-time second-by-second data aggregated)
+    2. Fall back to Yahoo Finance if WebSocket unavailable or stale
+    
+    This provides seamless transition between data sources without breaking the analysis.
+    
+    Args:
+        symbol: Ticker symbol (default: 'QQQ' for NASDAQ-100 ETF)
+        interval: Y-finance interval, only used for fallback (default: '1m')
+    
+    Returns:
+        Dict with open, high, low, close, volume, timestamp or None if all sources fail
+    """
+    print(f"\n📊 Fetching OHLCV data for {symbol}...")
+    
+    # Try WebSocket database first (primary source)
+    print(f"  Attempting: WebSocket database (primary)")
+    ohlcv = fetch_latest_ohlcv_from_websocket_db(symbol=symbol, window_seconds=60)
+    
+    if ohlcv:
+        print(f"  ✅ Using WebSocket data (real-time)")
+        return ohlcv
+    
+    # Fallback to Yahoo Finance
+    print(f"  ⚠️  WebSocket data unavailable, falling back to Yahoo Finance...")
+    ohlcv = fetch_latest_ohlcv_from_yfinance(symbol=symbol, interval=interval)
+    
+    if ohlcv:
+        print(f"  ✅ Using Yahoo Finance data (fallback)")
+        return ohlcv
+    
+    # All sources failed
+    print(f"  ❌ All data sources failed for {symbol}")
+    return None
+
+
+def fetch_ohlcv_data_from_db(ticker_symbol='QQQ', hours_back=24):
     """
     Fetch OHLCV (Open, High, Low, Close, Volume) data from our database.
 
     Args:
-        ticker_symbol: Ticker symbol ('^IXIC' for NASDAQ Composite)
+        ticker_symbol: Ticker symbol ('QQQ' for NASDAQ-100 ETF)
         hours_back: How many hours of historical data to fetch
 
     Returns:
@@ -318,7 +411,7 @@ def calculate_all_indicators(symbol, resolution='5', hours_back=24, config=None)
     print(f"\n📊 Calculating technical indicators from database history...")
 
     # Fetch OHLCV data from our database
-    df = fetch_ohlcv_data_from_db(ticker_symbol='^IXIC', hours_back=hours_back)
+    df = fetch_ohlcv_data_from_db(ticker_symbol='QQQ', hours_back=hours_back)
 
     if df is None or len(df) == 0:
         print(f"  ❌ No data available for {symbol}")
@@ -439,7 +532,7 @@ def fetch_indicators_with_fallback(symbols=None, resolution='5', hours_back=24, 
         Tuple of (indicators_dict, 'database')
     """
     indicators = calculate_all_indicators(
-        symbol='^IXIC',  # Always use ^IXIC from database
+        symbol='QQQ',  # Always use QQQ from database
         resolution=resolution,
         hours_back=hours_back,
         config=config

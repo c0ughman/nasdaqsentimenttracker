@@ -16,4 +16,5 @@ pytz==2025.2
 ta==0.11.0
 openai==1.59.8
 finlight-client==2.0.2
+websocket-client==1.6.4
 

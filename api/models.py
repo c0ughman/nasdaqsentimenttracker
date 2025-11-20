@@ -19,6 +19,120 @@ class Ticker(models.Model):
         return f"{self.symbol} - {self.company_name}" if self.company_name else self.symbol
 
 
+class OHLCVTick(models.Model):
+    """
+    Real-time price ticks from EODHD WebSocket
+    Stores second-by-second price data for aggregation into candles
+    """
+    ticker = models.ForeignKey(Ticker, on_delete=models.CASCADE, related_name='ohlcv_ticks')
+    timestamp = models.DateTimeField(db_index=True, help_text="Tick timestamp (second precision)")
+    price = models.DecimalField(max_digits=12, decimal_places=4, help_text="Price at this tick")
+    volume = models.IntegerField(default=0, help_text="Volume at this tick")
+    bid = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Bid price")
+    ask = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Ask price")
+    source = models.CharField(max_length=20, default='eodhd_ws', help_text="Data source (eodhd_ws, etc.)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'api_ohlcv_tick'
+        ordering = ['-timestamp']
+        verbose_name = "OHLCV Tick"
+        verbose_name_plural = "OHLCV Ticks"
+        indexes = [
+            models.Index(fields=['ticker', '-timestamp']),
+            models.Index(fields=['-timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.ticker.symbol} @ {self.timestamp.strftime('%H:%M:%S')} - ${self.price}"
+
+
+class SecondSnapshot(models.Model):
+    """
+    Second-by-second market snapshot
+    Stores 1-second OHLCV candles and future real-time indicators
+    Created every second during market hours by WebSocket collector
+    """
+    ticker = models.ForeignKey(Ticker, on_delete=models.CASCADE, related_name='second_snapshots')
+    timestamp = models.DateTimeField(db_index=True, help_text="The second this snapshot represents")
+    
+    # 1-SECOND OHLCV CANDLE (time-based aggregation)
+    ohlc_1sec_open = models.DecimalField(max_digits=12, decimal_places=4, help_text="Open price for this second")
+    ohlc_1sec_high = models.DecimalField(max_digits=12, decimal_places=4, help_text="High price for this second")
+    ohlc_1sec_low = models.DecimalField(max_digits=12, decimal_places=4, help_text="Low price for this second")
+    ohlc_1sec_close = models.DecimalField(max_digits=12, decimal_places=4, help_text="Close price for this second")
+    ohlc_1sec_volume = models.IntegerField(default=0, help_text="Total volume for this second")
+    ohlc_1sec_tick_count = models.IntegerField(default=0, help_text="Number of ticks in this second")
+    
+    # FUTURE: Real-time indicators (Phase 2)
+    price_momentum_5sec = models.FloatField(null=True, blank=True, help_text="5-second price momentum")
+    price_change_1sec = models.FloatField(null=True, blank=True, help_text="1-second price change %")
+    
+    # FUTURE: Second-by-second composite scores (Phase 2)
+    composite_score = models.FloatField(null=True, blank=True, help_text="Real-time composite score (-100 to +100)")
+    news_score_cached = models.FloatField(null=True, blank=True, help_text="Cached news score from latest AnalysisRun")
+    technical_score_cached = models.FloatField(null=True, blank=True, help_text="Cached technical score")
+    
+    # METADATA
+    source = models.CharField(max_length=20, default='eodhd_ws', help_text="Data source")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'api_second_snapshot'
+        ordering = ['-timestamp']
+        verbose_name = "Second Snapshot"
+        verbose_name_plural = "Second Snapshots"
+        indexes = [
+            models.Index(fields=['ticker', '-timestamp']),
+            models.Index(fields=['-timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.ticker.symbol} @ {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')} - ${self.ohlc_1sec_close}"
+
+
+class TickCandle100(models.Model):
+    """
+    100-tick OHLCV candles (volume-based aggregation)
+    Created when 100 ticks accumulate, regardless of time duration
+    Useful for volume-based technical analysis
+    """
+    ticker = models.ForeignKey(Ticker, on_delete=models.CASCADE, related_name='tick_candles_100')
+    candle_number = models.IntegerField(db_index=True, help_text="Sequential candle number (1st, 2nd, 3rd...)")
+    completed_at = models.DateTimeField(db_index=True, help_text="When 100th tick arrived")
+    
+    # 100-TICK OHLCV CANDLE
+    open = models.DecimalField(max_digits=12, decimal_places=4, help_text="Open price (1st tick)")
+    high = models.DecimalField(max_digits=12, decimal_places=4, help_text="High price (max of 100 ticks)")
+    low = models.DecimalField(max_digits=12, decimal_places=4, help_text="Low price (min of 100 ticks)")
+    close = models.DecimalField(max_digits=12, decimal_places=4, help_text="Close price (100th tick)")
+    total_volume = models.IntegerField(help_text="Total volume of 100 ticks")
+    
+    # TIMING METADATA
+    first_tick_time = models.DateTimeField(help_text="Timestamp of 1st tick in this candle")
+    last_tick_time = models.DateTimeField(help_text="Timestamp of 100th tick in this candle")
+    duration_seconds = models.FloatField(help_text="Duration in seconds (last - first tick)")
+    
+    # METADATA
+    source = models.CharField(max_length=20, default='eodhd_ws')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'api_tick_candle_100'
+        ordering = ['-completed_at']
+        verbose_name = "100-Tick Candle"
+        verbose_name_plural = "100-Tick Candles"
+        indexes = [
+            models.Index(fields=['ticker', '-completed_at']),
+            models.Index(fields=['ticker', 'candle_number']),
+            models.Index(fields=['-completed_at']),
+        ]
+        unique_together = ['ticker', 'candle_number']
+    
+    def __str__(self):
+        return f"{self.ticker.symbol} - Candle #{self.candle_number} @ {self.completed_at.strftime('%H:%M:%S')} (${self.close})"
+
+
 class AnalysisRun(models.Model):
     """
     Complete analysis run - stores sentiment score, stock price, and all component scores

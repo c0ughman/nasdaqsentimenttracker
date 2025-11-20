@@ -1,0 +1,523 @@
+"""
+EODHD WebSocket Data Collector V2 - With Second-by-Second Aggregation
+Collects real-time ticks and creates:
+  - 1-second OHLCV candles (SecondSnapshot)
+  - 100-tick OHLCV candles (TickCandle100)
+  
+Market hours: Connects at 9:30 AM EST, disconnects at 4:00 PM EST
+
+Run with: python manage.py run_websocket_collector_v2
+"""
+
+import os
+import json
+import time
+import signal
+import sys
+from datetime import datetime, time as datetime_time
+from collections import deque
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+import pytz
+from api.models import Ticker, OHLCVTick, SecondSnapshot, TickCandle100
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# WebSocket library
+try:
+    import websocket
+except ImportError:
+    print("❌ ERROR: websocket-client not installed")
+    print("   Install with: pip install websocket-client")
+    sys.exit(1)
+
+# Configuration
+EODHD_API_KEY = os.environ.get('EODHD_API_KEY', '')
+WEBSOCKET_URL = f"wss://ws.eodhistoricaldata.com/ws/us?api_token={EODHD_API_KEY}"
+
+# Market hours (EST)
+MARKET_OPEN_TIME = datetime_time(9, 30)  # 9:30 AM
+MARKET_CLOSE_TIME = datetime_time(16, 0)  # 4:00 PM
+EST_TZ = pytz.timezone('US/Eastern')
+
+
+class Command(BaseCommand):
+    help = 'Collect real-time data and create second-by-second candles'
+    
+    def __init__(self):
+        super().__init__()
+        self.ws = None
+        self.ticker = None
+        self.running = True
+        
+        # Tick buffers
+        self.tick_buffer_1sec = {}  # Dict keyed by second timestamp (int) -> list of ticks
+        self.tick_buffer_100tick = deque(maxlen=100)  # For 100-tick candles
+        self.tick_counter_100 = 0
+        self.candle_100_number = 0
+        
+        # Statistics
+        self.total_ticks = 0
+        self.total_1sec_candles = 0
+        self.total_100tick_candles = 0
+        self.connection_start = None
+        self.last_second_timestamp = None
+        self.last_processed_second = None  # Track which second we last processed
+        
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--symbol',
+            type=str,
+            default='QQQ',
+            help='Symbol to track (default: QQQ for NASDAQ-100 ETF)'
+        )
+        parser.add_argument(
+            '--verbose',
+            action='store_true',
+            help='Print detailed logs'
+        )
+        parser.add_argument(
+            '--skip-market-hours',
+            action='store_true',
+            help='Skip market hours check (for testing)'
+        )
+        
+    def handle(self, *args, **options):
+        self.symbol = options.get('symbol', 'QQQ')
+        self.verbose = options.get('verbose', False)
+        self.skip_market_hours = options.get('skip_market_hours', False)
+        
+        # Validate API key
+        if not EODHD_API_KEY:
+            self.stdout.write(self.style.ERROR(
+                '❌ EODHD_API_KEY not set in .env file'
+            ))
+            return
+        
+        # Get or create ticker
+        self.ticker, _ = Ticker.objects.get_or_create(
+            symbol='QQQ',
+            defaults={'company_name': 'Invesco QQQ Trust (NASDAQ-100 ETF)'}
+        )
+        
+        # Signal handlers
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+        
+        # Display startup info
+        self.stdout.write(self.style.SUCCESS(
+            '\n' + '='*70 + '\n'
+            '🚀 EODHD WebSocket Collector V2 (Second-by-Second Aggregation)\n'
+            '='*70
+        ))
+        self.stdout.write(f'📊 Ticker: QQQ (NASDAQ-100 ETF)')
+        self.stdout.write(f'📡 Symbol: {self.symbol}')
+        self.stdout.write(f'⏰ Market Hours: 9:30 AM - 4:00 PM EST')
+        self.stdout.write(f'💾 Saves: 1-second candles + 100-tick candles')
+        self.stdout.write('⌨️  Press Ctrl+C to stop\n')
+        
+        # Market hours loop
+        self.connection_start = time.time()
+        
+        try:
+            while self.running:
+                if not self.skip_market_hours:
+                    # Check market hours
+                    market_open, reason = self.is_market_open()
+                    
+                    if not market_open:
+                        self.stdout.write(self.style.WARNING(
+                            f'⏸️  Market Closed: {reason}'
+                        ))
+                        
+                        # Calculate sleep time until next market open
+                        sleep_seconds = self.seconds_until_market_open()
+                        sleep_minutes = int(sleep_seconds / 60)
+                        
+                        self.stdout.write(
+                            f'💤 Sleeping until next market open '
+                            f'({sleep_minutes} minutes)...\n'
+                        )
+                        time.sleep(min(sleep_seconds, 300))  # Check every 5 min max
+                        continue
+                
+                # Market is open, connect
+                self.stdout.write(self.style.SUCCESS('✅ Market Open - Connecting...'))
+                try:
+                    self.connect_and_run()
+                except KeyboardInterrupt:
+                    self.running = False
+                    break
+                except Exception as e:
+                    self.stdout.write(self.style.ERROR(f'❌ Error: {e}'))
+                    if self.running:
+                        self.stdout.write('🔄 Reconnecting in 5 seconds...')
+                        time.sleep(5)
+        finally:
+            self.cleanup()
+    
+    def is_market_open(self):
+        """Check if market is currently open"""
+        now_est = datetime.now(EST_TZ)
+        current_time = now_est.time()
+        current_day = now_est.weekday()
+        
+        # Check weekend
+        if current_day >= 5:  # Saturday = 5, Sunday = 6
+            return False, "Weekend"
+        
+        # Check time
+        if current_time < MARKET_OPEN_TIME:
+            return False, "Before market open (9:30 AM EST)"
+        
+        if current_time >= MARKET_CLOSE_TIME:
+            return False, "After market close (4:00 PM EST)"
+        
+        return True, "Market hours"
+    
+    def seconds_until_market_open(self):
+        """Calculate seconds until next market open"""
+        now_est = datetime.now(EST_TZ)
+        current_day = now_est.weekday()
+        
+        # If it's Friday after close or weekend, wait until Monday 9:30 AM
+        if current_day == 4 and now_est.time() >= MARKET_CLOSE_TIME:  # Friday after close
+            days_to_add = 3  # Wait until Monday
+        elif current_day == 5:  # Saturday
+            days_to_add = 2
+        elif current_day == 6:  # Sunday
+            days_to_add = 1
+        elif now_est.time() >= MARKET_CLOSE_TIME:  # After close on weekday
+            days_to_add = 1
+        else:  # Before open on weekday
+            days_to_add = 0
+        
+        # Calculate next market open
+        next_open = now_est.replace(
+            hour=MARKET_OPEN_TIME.hour,
+            minute=MARKET_OPEN_TIME.minute,
+            second=0,
+            microsecond=0
+        )
+        
+        if days_to_add > 0:
+            from datetime import timedelta
+            next_open += timedelta(days=days_to_add)
+        
+        seconds = (next_open - now_est).total_seconds()
+        return max(0, seconds)
+    
+    def signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        self.stdout.write(self.style.WARNING('\n\n⚠️  Received shutdown signal...'))
+        self.running = False
+        if self.ws:
+            self.ws.close()
+    
+    def connect_and_run(self):
+        """Establish WebSocket connection"""
+        self.stdout.write(self.style.WARNING('🔌 Connecting to EODHD WebSocket...'))
+        
+        # Create WebSocket app
+        self.ws = websocket.WebSocketApp(
+            WEBSOCKET_URL,
+            on_open=lambda ws: self.on_open(ws),
+            on_message=self.on_message,
+            on_error=self.on_error,
+            on_close=self.on_close
+        )
+        
+        # Disable SSL verification for macOS compatibility
+        import ssl
+        self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+    
+    def on_open(self, ws):
+        """Called when WebSocket connection established"""
+        self.stdout.write(self.style.SUCCESS('✅ WebSocket connected!'))
+        
+        # Subscribe
+        subscribe_message = {
+            "action": "subscribe",
+            "symbols": self.symbol
+        }
+        ws.send(json.dumps(subscribe_message))
+        self.stdout.write(self.style.SUCCESS(f'📡 Subscribed to {self.symbol}'))
+        
+        # Start aggregation timer
+        import threading
+        self.aggregation_thread = threading.Thread(target=self.aggregation_loop, daemon=True)
+        self.aggregation_thread.start()
+        self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started\n'))
+    
+    def aggregation_loop(self):
+        """Run every second on the dot to create 1-second candles"""
+        # Calculate next second boundary
+        now = time.time()
+        next_second = int(now) + 1  # Next whole second
+        
+        while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
+            # Sleep until next second boundary
+            now = time.time()
+            sleep_time = next_second - now
+            
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+            
+            # Process the previous second's ticks
+            current_second = int(time.time())
+            previous_second = current_second - 1
+            
+            # Only process if we haven't already processed this second
+            if self.last_processed_second is None or previous_second > self.last_processed_second:
+                self.aggregate_and_save_1sec_candle(previous_second)
+                self.last_processed_second = previous_second
+            
+            # Update next second boundary
+            next_second = current_second + 1
+    
+    def on_message(self, ws, message):
+        """Process incoming tick data"""
+        try:
+            data = json.loads(message)
+            
+            # Handle status/error messages
+            if 'error' in data:
+                self.stdout.write(self.style.ERROR(f'❌ Server error: {data.get("error")}'))
+                return
+            
+            if 'status' in data or 'message' in data:
+                if self.verbose:
+                    self.stdout.write(self.style.SUCCESS(f'📢 {data}'))
+                return
+            
+            # Extract tick data
+            symbol = data.get('s', '')
+            price = data.get('p', None)
+            volume = data.get('v', 0)
+            timestamp_unix = data.get('t', None)
+            
+            # Try bid/ask if no trade price
+            if price is None:
+                price = data.get('bp', data.get('ap', None))
+            
+            if not symbol or price is None:
+                return
+            
+            # Convert timestamp
+            if timestamp_unix:
+                try:
+                    if timestamp_unix > 10000000000:
+                        timestamp_unix = timestamp_unix / 1000
+                    dt = datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
+                except Exception:
+                    dt = timezone.now()
+            else:
+                dt = timezone.now()
+            
+            # Save raw tick
+            tick = OHLCVTick.objects.create(
+                ticker=self.ticker,
+                timestamp=dt,
+                price=price,
+                volume=volume,
+                source='eodhd_ws'
+            )
+            
+            # Add to buffers
+            # Group ticks by their exact second (rounded down)
+            tick_second = int(dt.timestamp())  # Get Unix timestamp as integer (second boundary)
+            
+            if tick_second not in self.tick_buffer_1sec:
+                self.tick_buffer_1sec[tick_second] = []
+            self.tick_buffer_1sec[tick_second].append(tick)
+            
+            self.tick_buffer_100tick.append(tick)
+            self.tick_counter_100 += 1
+            self.total_ticks += 1
+            
+            # Check if 100-tick candle completed
+            if self.tick_counter_100 >= 100:
+                self.create_100tick_candle()
+                self.tick_counter_100 = 0
+            
+            # Log progress
+            if self.verbose or self.total_ticks % 10 == 0:
+                self.stdout.write(
+                    f'💾 Tick #{self.total_ticks:>6}: {dt.strftime("%H:%M:%S")} | '
+                    f'${price:>8.2f} | Vol: {volume:>8,}'
+                )
+        
+        except json.JSONDecodeError:
+            if self.verbose:
+                self.stdout.write(self.style.WARNING(f'⚠️  Non-JSON: {message[:100]}'))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'❌ Error: {e}'))
+    
+    def aggregate_and_save_1sec_candle(self, second_timestamp):
+        """
+        Aggregate ticks from a specific second and save as 1-second candle.
+        
+        Args:
+            second_timestamp: Unix timestamp (integer) for the second to process
+        """
+        # Get ticks for this specific second
+        ticks = self.tick_buffer_1sec.get(second_timestamp, [])
+        
+        # Create timestamp from the second boundary (not from tick timestamps)
+        timestamp = datetime.fromtimestamp(second_timestamp, tz=timezone.utc)
+        
+        # Check if candle already exists for this second (avoid duplicates)
+        existing = SecondSnapshot.objects.filter(
+            ticker=self.ticker,
+            timestamp=timestamp
+        ).first()
+        
+        if existing:
+            # Already created, skip
+            return
+        
+        try:
+            if not ticks:
+                # No ticks for this second - create empty candle or skip
+                # Option: Create with last known price, or skip entirely
+                # For now, skip seconds with no ticks
+                return
+            
+            # Calculate OHLCV from ticks
+            open_price = float(ticks[0].price)
+            high_price = max(float(t.price) for t in ticks)
+            low_price = min(float(t.price) for t in ticks)
+            close_price = float(ticks[-1].price)
+            total_volume = sum(t.volume for t in ticks)
+            tick_count = len(ticks)
+            
+            # Save to SecondSnapshot with exact second boundary timestamp
+            snapshot = SecondSnapshot.objects.create(
+                ticker=self.ticker,
+                timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
+                ohlc_1sec_open=open_price,
+                ohlc_1sec_high=high_price,
+                ohlc_1sec_low=low_price,
+                ohlc_1sec_close=close_price,
+                ohlc_1sec_volume=total_volume,
+                ohlc_1sec_tick_count=tick_count,
+                source='eodhd_ws'
+            )
+            
+            self.total_1sec_candles += 1
+            self.last_second_timestamp = timestamp
+            
+            if self.verbose or self.total_1sec_candles % 10 == 0:
+                self.stdout.write(self.style.SUCCESS(
+                    f'📊 1-sec candle #{self.total_1sec_candles}: '
+                    f'{timestamp.strftime("%H:%M:%S")} | '
+                    f'O:{open_price:.2f} H:{high_price:.2f} L:{low_price:.2f} C:{close_price:.2f} | '
+                    f'{tick_count} ticks'
+                ))
+            
+            # Remove processed ticks from buffer (cleanup old seconds)
+            if second_timestamp in self.tick_buffer_1sec:
+                del self.tick_buffer_1sec[second_timestamp]
+            
+            # Cleanup old seconds (keep only last 5 seconds in buffer)
+            current_second = int(time.time())
+            seconds_to_keep = [current_second - i for i in range(5)]
+            keys_to_remove = [k for k in self.tick_buffer_1sec.keys() if k not in seconds_to_keep]
+            for k in keys_to_remove:
+                del self.tick_buffer_1sec[k]
+        
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'❌ Error creating 1-sec candle: {e}'))
+    
+    def create_100tick_candle(self):
+        """Create 100-tick candle from buffer"""
+        if len(self.tick_buffer_100tick) < 100:
+            return
+        
+        try:
+            # Get last 100 ticks
+            ticks = list(self.tick_buffer_100tick)[-100:]
+            
+            # Calculate OHLCV
+            open_price = float(ticks[0].price)
+            high_price = max(float(t.price) for t in ticks)
+            low_price = min(float(t.price) for t in ticks)
+            close_price = float(ticks[-1].price)
+            total_volume = sum(t.volume for t in ticks)
+            
+            first_tick_time = ticks[0].timestamp
+            last_tick_time = ticks[-1].timestamp
+            duration = (last_tick_time - first_tick_time).total_seconds()
+            
+            # Increment candle number
+            self.candle_100_number += 1
+            
+            # Save to TickCandle100
+            candle = TickCandle100.objects.create(
+                ticker=self.ticker,
+                candle_number=self.candle_100_number,
+                completed_at=last_tick_time,
+                open=open_price,
+                high=high_price,
+                low=low_price,
+                close=close_price,
+                total_volume=total_volume,
+                first_tick_time=first_tick_time,
+                last_tick_time=last_tick_time,
+                duration_seconds=duration,
+                source='eodhd_ws'
+            )
+            
+            self.total_100tick_candles += 1
+            
+            self.stdout.write(self.style.SUCCESS(
+                f'🎯 100-tick candle #{self.candle_100_number}: '
+                f'{last_tick_time.strftime("%H:%M:%S")} | '
+                f'O:{open_price:.2f} H:{high_price:.2f} L:{low_price:.2f} C:{close_price:.2f} | '
+                f'{duration:.1f}s duration'
+            ))
+        
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'❌ Error creating 100-tick candle: {e}'))
+    
+    def on_error(self, ws, error):
+        """Handle WebSocket errors"""
+        self.stdout.write(self.style.ERROR(f'❌ WebSocket error: {error}'))
+    
+    def on_close(self, ws, close_status_code, close_msg):
+        """Handle WebSocket close"""
+        if close_status_code:
+            self.stdout.write(self.style.WARNING(
+                f'⚠️  WebSocket closed (code: {close_status_code})'
+            ))
+        else:
+            self.stdout.write(self.style.WARNING('⚠️  WebSocket closed'))
+    
+    def cleanup(self):
+        """Cleanup and display statistics"""
+        # Process any remaining ticks for all seconds in buffer
+        if self.tick_buffer_1sec:
+            for second_timestamp in sorted(self.tick_buffer_1sec.keys()):
+                self.aggregate_and_save_1sec_candle(second_timestamp)
+        
+        if self.ws:
+            self.ws.close()
+        
+        # Calculate statistics
+        uptime = time.time() - self.connection_start if self.connection_start else 0
+        uptime_str = f"{int(uptime // 3600)}h {int((uptime % 3600) // 60)}m {int(uptime % 60)}s"
+        
+        self.stdout.write(self.style.SUCCESS(
+            f'\n' + '='*70 + '\n'
+            f'📊 Session Statistics\n'
+            f'='*70 + '\n'
+            f'   Total ticks collected: {self.total_ticks:,}\n'
+            f'   1-second candles created: {self.total_1sec_candles:,}\n'
+            f'   100-tick candles created: {self.total_100tick_candles:,}\n'
+            f'   Uptime: {uptime_str}\n'
+            f'   Last candle: {self.last_second_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.last_second_timestamp else "N/A"}\n'
+            f'='*70
+        ))
+        self.stdout.write(self.style.SUCCESS('✅ Collector stopped cleanly'))
+

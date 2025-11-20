@@ -40,8 +40,8 @@ from .nasdaq_config import (
     INDICATOR_PERIODS,
 )
 
-# Import technical indicators calculator (uses Yahoo Finance OHLCV + math)
-from .technical_indicators import fetch_indicators_with_fallback, fetch_latest_ohlcv_from_yfinance, calculate_technical_composite_score, fetch_vxn_price
+# Import technical indicators calculator (uses WebSocket + Yahoo Finance OHLCV + math)
+from .technical_indicators import fetch_indicators_with_fallback, fetch_latest_ohlcv_with_fallback, calculate_technical_composite_score, fetch_vxn_price
 
 # Import Reddit sentiment analysis
 from .reddit_fetcher import fetch_all_reddit_content
@@ -944,7 +944,7 @@ def check_if_new_recommendations_available(finnhub_client, sample_symbols=None):
     print(f"  🔍 Checking for new recommendations (sampling {len(sample_symbols)} stocks)...")
     
     # Get the latest analysis run to compare against
-    latest_run = AnalysisRun.objects.filter(ticker__symbol='^IXIC').order_by('-timestamp').first()
+    latest_run = AnalysisRun.objects.filter(ticker__symbol='QQQ').order_by('-timestamp').first()
     
     if not latest_run or latest_run.analyst_recommendations_count == 0:
         print(f"    No previous recommendations found - fetching all")
@@ -1088,21 +1088,21 @@ def run_nasdaq_composite_analysis(finnhub_client):
     Uses hybrid approach: company news (70%) + market news (30%)
     """
     print("\n" + "="*80)
-    print("🚀 STARTING NASDAQ COMPOSITE SENTIMENT ANALYSIS")
+    print("🚀 STARTING NASDAQ-100 (QQQ) SENTIMENT ANALYSIS")
     print("="*80)
     
     start_time = time.time()
     
     # Step 1: Initialize or get NASDAQ composite ticker
     nasdaq_ticker, created = Ticker.objects.get_or_create(
-        symbol='^IXIC',
+        symbol='QQQ',
         defaults={
-            'company_name': 'NASDAQ Composite Index',
+            'company_name': 'Invesco QQQ Trust (NASDAQ-100 ETF)',
             'exchange': 'NASDAQ'
         }
     )
     if created:
-        print(f"✨ Created NASDAQ composite ticker: ^IXIC")
+        print(f"✨ Created QQQ ticker: QQQ")
     
     # Step 2: Initialize all component tickers
     print(f"\n📊 Initializing {len(NASDAQ_TOP_20)} component tickers...")
@@ -1259,9 +1259,9 @@ def run_nasdaq_composite_analysis(finnhub_client):
         latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()
 
         if latest_run:
-            # Fetch current stock price and OHLCV from Yahoo Finance
+            # Fetch current stock price and OHLCV (WebSocket with Y-finance fallback)
             try:
-                ohlcv = fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m')
+                ohlcv = fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m')
 
                 if ohlcv:
                     new_price = Decimal(str(ohlcv['close']))
@@ -1272,7 +1272,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
                     new_change = ((ohlcv['close'] - ohlcv['open']) / ohlcv['open'] * 100) if ohlcv['open'] != 0 else 0
                 else:
                     # Fallback to Finnhub
-                    quote = finnhub_client.quote('^IXIC')
+                    quote = finnhub_client.quote('QQQ')
                     new_price = Decimal(str(quote['c']))
                     new_open = Decimal(str(quote.get('o', quote['c'])))
                     new_high = Decimal(str(quote.get('h', quote['c'])))
@@ -1416,7 +1416,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
                         articles_analyzed=contrib.articles_analyzed
                     )
                 
-                print(f"📊 Updated NASDAQ (^IXIC) Price: ${new_price:.2f} ({new_change:+.2f}%)")
+                print(f"📊 Updated QQQ Price: ${new_price:.2f} ({new_change:+.2f}%)")
                 print(f"✅ Created new run #{new_run.id} with updated price (sentiment unchanged)")
                 print(f"⏱️  Completed in {time.time() - start_time:.1f} seconds")
                 
@@ -1643,10 +1643,10 @@ def run_nasdaq_composite_analysis(finnhub_client):
     print(f"   Combined (before final cap): {decayed_score + new_article_impact:+.2f}")
     print(f"   Final news_composite: {news_composite:+.2f}")
 
-    # Step 8: Get NASDAQ index price and OHLCV data from Yahoo Finance (NASDAQ Composite Index)
+    # Step 8: Get NASDAQ-100 price and OHLCV data (WebSocket with Y-finance fallback)
     try:
-        print(f"\n📊 Fetching real-time OHLCV from Yahoo Finance...")
-        ohlcv = fetch_latest_ohlcv_from_yfinance(symbol='^IXIC', interval='1m')
+        print(f"\n📊 Fetching real-time OHLCV data...")
+        ohlcv = fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m')
 
         if ohlcv:
             index_price = Decimal(str(ohlcv['close']))
@@ -1664,7 +1664,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
         print(f"\n⚠️ Could not fetch OHLCV from Yahoo Finance: {e}")
         print(f"  Falling back to Finnhub quote...")
         try:
-            quote = finnhub_client.quote('^IXIC')
+            quote = finnhub_client.quote('QQQ')
             index_price = Decimal(str(quote['c']))
             price_open = Decimal(str(quote.get('o', quote['c'])))
             price_high = Decimal(str(quote.get('h', quote['c'])))
@@ -1741,7 +1741,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     )
 
     print(f"\n{'='*80}")
-    print(f"🎯 FINAL NASDAQ COMPOSITE SENTIMENT SCORE: {final_composite_score:+.2f}")
+    print(f"🎯 FINAL QQQ SENTIMENT SCORE: {final_composite_score:+.2f}")
     print(f"{'='*80}")
     print(f"   News Sentiment:            {news_composite:+.2f} × {NEWS_WEIGHT:.0%} = {news_composite * NEWS_WEIGHT:+.2f}")
     print(f"   Social Media (Reddit):     {reddit_sentiment:+.2f} × {SOCIAL_WEIGHT:.0%} = {reddit_sentiment * SOCIAL_WEIGHT:+.2f}")
@@ -1849,7 +1849,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
             NewsArticle.objects.update_or_create(
                 article_hash=article_data['article_hash'],
                 defaults={
-                    'ticker': nasdaq_ticker if article_data['article_type'] == 'market' else ticker_objects.get(article_data.get('ticker_symbol', '^IXIC'), nasdaq_ticker),
+                    'ticker': nasdaq_ticker if article_data['article_type'] == 'market' else ticker_objects.get(article_data.get('ticker_symbol', 'QQQ'), nasdaq_ticker),
                     'analysis_run': analysis_run,
                     'headline': article_data['headline'],
                     'summary': article_data['summary'],
