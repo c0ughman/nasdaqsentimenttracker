@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Ticker, AnalysisRun, NewsArticle, SentimentHistory, TickerContribution, Example,
-    RedditPost, RedditComment, RedditAnalysisRun
+    RedditPost, RedditComment, RedditAnalysisRun,
+    OHLCVTick, SecondSnapshot, TickCandle100
 )
 
 
@@ -439,6 +440,148 @@ class RedditAnalysisRunAdmin(admin.ModelAdmin):
         }),
         ('Top Mentions', {
             'fields': ('top_tickers_mentioned',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        """Optimize query with select_related"""
+        qs = super().get_queryset(request)
+        return qs.select_related('ticker')
+
+
+# ============================================================================
+# EODHD WEBSOCKET MODELS ADMIN CONFIGURATION
+# ============================================================================
+
+@admin.register(OHLCVTick)
+class OHLCVTickAdmin(admin.ModelAdmin):
+    """Admin configuration for OHLCVTick model - Raw second-by-second ticks"""
+    list_display = [
+        'ticker',
+        'timestamp',
+        'price',
+        'volume',
+        'source'
+    ]
+    list_filter = ['ticker', 'source', 'timestamp']
+    search_fields = ['ticker__symbol']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'timestamp'
+    
+    fieldsets = (
+        ('Tick Information', {
+            'fields': ('ticker', 'timestamp', 'price', 'volume', 'source')
+        }),
+        ('Metadata', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        """Optimize query with select_related"""
+        qs = super().get_queryset(request)
+        return qs.select_related('ticker')
+
+
+@admin.register(SecondSnapshot)
+class SecondSnapshotAdmin(admin.ModelAdmin):
+    """Admin configuration for SecondSnapshot model - 1-second OHLCV candles"""
+    list_display = [
+        'ticker',
+        'timestamp',
+        'ohlc_1sec_open',
+        'ohlc_1sec_high',
+        'ohlc_1sec_low',
+        'ohlc_1sec_close',
+        'ohlc_1sec_volume',
+        'ohlc_1sec_tick_count',
+        'source'
+    ]
+    list_filter = ['ticker', 'source', 'timestamp']
+    search_fields = ['ticker__symbol']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'timestamp'
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('ticker', 'timestamp', 'source')
+        }),
+        ('1-Second OHLCV Candle', {
+            'fields': (
+                ('ohlc_1sec_open', 'ohlc_1sec_high'),
+                ('ohlc_1sec_low', 'ohlc_1sec_close'),
+                ('ohlc_1sec_volume', 'ohlc_1sec_tick_count')
+            )
+        }),
+        ('Real-Time Indicators (Future Phase 2)', {
+            'fields': (
+                'price_momentum_5sec',
+                'price_change_1sec'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Composite Scores (Future Phase 2)', {
+            'fields': (
+                'composite_score',
+                'news_score_cached',
+                'technical_score_cached'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_queryset(self, request):
+        """Optimize query with select_related"""
+        qs = super().get_queryset(request)
+        return qs.select_related('ticker')
+
+
+@admin.register(TickCandle100)
+class TickCandle100Admin(admin.ModelAdmin):
+    """Admin configuration for TickCandle100 model - 100-tick volume-based candles"""
+    list_display = [
+        'ticker',
+        'candle_number',
+        'completed_at',
+        'open',
+        'high',
+        'low',
+        'close',
+        'total_volume',
+        'duration_seconds',
+        'source'
+    ]
+    list_filter = ['ticker', 'source', 'completed_at']
+    search_fields = ['ticker__symbol']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'completed_at'
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('ticker', 'candle_number', 'completed_at', 'source')
+        }),
+        ('100-Tick OHLCV Candle', {
+            'fields': (
+                ('open', 'high'),
+                ('low', 'close'),
+                'total_volume'
+            )
+        }),
+        ('Timing Metadata', {
+            'fields': (
+                'first_tick_time',
+                'last_tick_time',
+                'duration_seconds'
+            )
+        }),
+        ('Metadata', {
+            'fields': ('created_at',),
             'classes': ('collapse',)
         }),
     )
