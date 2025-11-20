@@ -309,7 +309,7 @@ class Command(BaseCommand):
                 try:
                     if timestamp_unix > 10000000000:
                         timestamp_unix = timestamp_unix / 1000
-                    dt = datetime.fromtimestamp(timestamp_unix, tz=timezone.utc)
+                    dt = datetime.fromtimestamp(timestamp_unix, tz=pytz.UTC)
                 except Exception:
                     dt = timezone.now()
             else:
@@ -365,7 +365,7 @@ class Command(BaseCommand):
         ticks = self.tick_buffer_1sec.get(second_timestamp, [])
         
         # Create timestamp from the second boundary (not from tick timestamps)
-        timestamp = datetime.fromtimestamp(second_timestamp, tz=timezone.utc)
+        timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
         
         # Check if candle already exists for this second (avoid duplicates)
         existing = SecondSnapshot.objects.filter(
