@@ -101,6 +101,12 @@ class Command(BaseCommand):
             defaults={'company_name': 'ProShares Ultra QQQ (2x Leveraged NASDAQ-100 ETF)'}
         )
         
+        # Initialize 100-tick candle counter from database (resume from last candle)
+        last_candle = TickCandle100.objects.filter(ticker=self.ticker).order_by('-candle_number').first()
+        self.candle_100_number = last_candle.candle_number if last_candle else 0
+        if last_candle:
+            self.stdout.write(self.style.SUCCESS(f'🔢 Resuming 100-tick candles from #{self.candle_100_number + 1}'))
+        
         # Signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
