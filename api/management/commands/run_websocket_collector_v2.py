@@ -242,7 +242,8 @@ class Command(BaseCommand):
             "symbols": self.symbol
         }
         ws.send(json.dumps(subscribe_message))
-        self.stdout.write(self.style.SUCCESS(f'📡 Subscribed to {self.symbol}'))
+        self.stdout.write(self.style.SUCCESS(f'📡 Subscription request sent for: {self.symbol}'))
+        self.stdout.write(self.style.WARNING('⏳ Waiting for server confirmation and data stream...'))
         
         # Start aggregation timer
         import threading
@@ -281,14 +282,14 @@ class Command(BaseCommand):
         try:
             data = json.loads(message)
             
-            # Handle status/error messages
+            # Handle status/error messages (ALWAYS LOG THESE)
             if 'error' in data:
                 self.stdout.write(self.style.ERROR(f'❌ Server error: {data.get("error")}'))
                 return
             
             if 'status' in data or 'message' in data:
-                if self.verbose:
-                    self.stdout.write(self.style.SUCCESS(f'📢 {data}'))
+                # ALWAYS log server status/messages (not just verbose mode)
+                self.stdout.write(self.style.SUCCESS(f'📢 Server says: {data}'))
                 return
             
             # Extract tick data
@@ -301,8 +302,18 @@ class Command(BaseCommand):
             if price is None:
                 price = data.get('bp', data.get('ap', None))
             
+            # Log if we get unexpected data format
             if not symbol or price is None:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Received data but missing symbol/price: {data}'
+                ))
                 return
+            
+            # Log first tick arrival (important milestone!)
+            if self.total_ticks == 0:
+                self.stdout.write(self.style.SUCCESS(
+                    f'🎉 FIRST TICK RECEIVED! Symbol: {symbol}, Price: ${price}, Volume: {volume}'
+                ))
             
             # Convert timestamp
             if timestamp_unix:
@@ -349,10 +360,13 @@ class Command(BaseCommand):
                 )
         
         except json.JSONDecodeError:
-            if self.verbose:
-                self.stdout.write(self.style.WARNING(f'⚠️  Non-JSON: {message[:100]}'))
+            # Always log non-JSON messages (could be important server info)
+            self.stdout.write(self.style.WARNING(f'⚠️  Non-JSON message: {message[:200]}'))
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'❌ Error: {e}'))
+            self.stdout.write(self.style.ERROR(f'❌ Error processing message: {e}'))
+            if self.verbose:
+                import traceback
+                self.stdout.write(self.style.ERROR(traceback.format_exc()))
     
     def aggregate_and_save_1sec_candle(self, second_timestamp):
         """
