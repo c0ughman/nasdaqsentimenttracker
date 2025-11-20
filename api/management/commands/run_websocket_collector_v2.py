@@ -281,6 +281,20 @@ class Command(BaseCommand):
             current_second = int(time.time())
             previous_second = current_second - 1
             
+            # DIAGNOSTIC: Log aggregation timing
+            if loop_count <= 5 or loop_count % 10 == 0:
+                current_dt = datetime.fromtimestamp(current_second, tz=pytz.UTC)
+                previous_dt = datetime.fromtimestamp(previous_second, tz=pytz.UTC)
+                buffer_seconds = sorted(list(self.tick_buffer_1sec.keys()))
+                self.stdout.write(self.style.WARNING(
+                    f'⏱️  AGGREGATION TIMING:\n'
+                    f'   System time: {current_dt.strftime("%H:%M:%S")} (ts={current_second})\n'
+                    f'   Processing: {previous_dt.strftime("%H:%M:%S")} (ts={previous_second})\n'
+                    f'   Buffer has {len(buffer_seconds)} seconds: {buffer_seconds[-10:] if len(buffer_seconds) > 10 else buffer_seconds}\n'
+                    f'   Previous second in buffer? {previous_second in self.tick_buffer_1sec}\n'
+                    f'   Tick count for previous second: {len(self.tick_buffer_1sec.get(previous_second, []))}'
+                ))
+            
             # Only process if we haven't already processed this second
             if self.last_processed_second is None or previous_second > self.last_processed_second:
                 self.aggregate_and_save_1sec_candle(previous_second)
@@ -310,6 +324,16 @@ class Command(BaseCommand):
             volume = data.get('v', 0)
             timestamp_unix = data.get('t', None)
             
+            # DIAGNOSTIC: Log raw timestamp data
+            if self.total_ticks < 5 or self.total_ticks % 100 == 0:
+                current_system_time = time.time()
+                self.stdout.write(self.style.NOTICE(
+                    f'🔍 DIAGNOSTIC Tick #{self.total_ticks + 1}: '
+                    f'Raw data timestamp field: {timestamp_unix}, '
+                    f'Current system time: {current_system_time:.3f}, '
+                    f'Data: {data}'
+                ))
+            
             # Try bid/ask if no trade price
             if price is None:
                 price = data.get('bp', data.get('ap', None))
@@ -333,10 +357,25 @@ class Command(BaseCommand):
                     if timestamp_unix > 10000000000:
                         timestamp_unix = timestamp_unix / 1000
                     dt = datetime.fromtimestamp(timestamp_unix, tz=pytz.UTC)
-                except Exception:
+                    
+                    # DIAGNOSTIC: Log time difference
+                    if self.total_ticks < 5 or self.total_ticks % 100 == 0:
+                        current_time = timezone.now()
+                        time_diff = (current_time - dt).total_seconds()
+                        self.stdout.write(self.style.WARNING(
+                            f'⏰ TIME DIFF: Tick timestamp: {dt.strftime("%H:%M:%S.%f")}, '
+                            f'System time: {current_time.strftime("%H:%M:%S.%f")}, '
+                            f'Delay: {time_diff:.3f} seconds'
+                        ))
+                except Exception as e:
+                    self.stdout.write(self.style.ERROR(f'❌ Timestamp conversion error: {e}'))
                     dt = timezone.now()
             else:
                 dt = timezone.now()
+                if self.total_ticks < 5:
+                    self.stdout.write(self.style.WARNING(
+                        f'⚠️  No timestamp field in data, using system time: {dt.strftime("%H:%M:%S.%f")}'
+                    ))
             
             # Save raw tick
             tick = OHLCVTick.objects.create(
@@ -351,8 +390,18 @@ class Command(BaseCommand):
             # Group ticks by their exact second (rounded down)
             tick_second = int(dt.timestamp())  # Get Unix timestamp as integer (second boundary)
             
+            # DIAGNOSTIC: Log buffer operations
+            if self.total_ticks < 5 or self.total_ticks % 100 == 0:
+                self.stdout.write(self.style.NOTICE(
+                    f'📦 BUFFER: Adding tick to second {tick_second} ({dt.strftime("%H:%M:%S")}), '
+                    f'Current buffer keys: {sorted(list(self.tick_buffer_1sec.keys())[-5:]) if self.tick_buffer_1sec else []}'
+                ))
+            
             if tick_second not in self.tick_buffer_1sec:
                 self.tick_buffer_1sec[tick_second] = []
+                self.stdout.write(self.style.SUCCESS(
+                    f'🆕 Created new buffer slot for second {tick_second} ({dt.strftime("%H:%M:%S")})'
+                ))
             self.tick_buffer_1sec[tick_second].append(tick)
             
             # DEBUG: Log first tick added to each second
@@ -396,6 +445,12 @@ class Command(BaseCommand):
         
         # Create timestamp from the second boundary (not from tick timestamps)
         timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
+        
+        # DIAGNOSTIC: Always log what we're trying to process
+        self.stdout.write(self.style.NOTICE(
+            f'🔧 AGGREGATE: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
+            f'Found {len(ticks)} ticks in buffer'
+        ))
         
         # Check if candle already exists for this second (avoid duplicates)
         existing = SecondSnapshot.objects.filter(
