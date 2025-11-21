@@ -69,6 +69,9 @@ class Command(BaseCommand):
         self.last_second_timestamp = None
         self.last_processed_second = None  # Track which second we last processed
         
+        # Duplicate prevention
+        self.processed_seconds = set() # Keep track of seconds we've already closed
+        
         # Rate limiting backoff
         self.consecutive_429_errors = 0
         self.last_429_error_time = None
@@ -425,11 +428,20 @@ class Command(BaseCommand):
                     # Process all ready keys
                     processed_count = 0
                     for sec_to_process in ready_keys:
-                        # Only process if we haven't already processed this second
-                        if self.last_processed_second is None or sec_to_process > self.last_processed_second:
+                        # Check if already processed using processed_seconds set
+                        with self.lock:
+                            already_processed = sec_to_process in self.processed_seconds
+                        
+                        if not already_processed:
                             self.aggregate_and_save_1sec_candle(sec_to_process)
                             self.last_processed_second = sec_to_process
                             processed_count += 1
+                        else:
+                            # Already processed - just clean up buffer
+                            if self.verbose:
+                                self.stdout.write(self.style.WARNING(
+                                    f'⏭️  Skipping already processed second {sec_to_process}'
+                                ))
                         
                         # Ensure key is removed from buffer even if we skipped processing
                         # (e.g. if we somehow processed it already but didn't clear it)
@@ -439,6 +451,20 @@ class Command(BaseCommand):
                     
                     if processed_count > 0 and (loop_count % 10 == 0 or self.verbose):
                         self.stdout.write(self.style.SUCCESS(f'⚡ Processed {processed_count} seconds in this iteration'))
+                    
+                    # Cleanup old processed seconds (every 60 iterations = ~1 minute)
+                    # Keep only last 5 minutes of processed seconds to prevent memory growth
+                    if loop_count % 60 == 0:
+                        with self.lock:
+                            cutoff_second = current_second - 300  # 5 minutes ago
+                            old_seconds = [s for s in self.processed_seconds if s < cutoff_second]
+                            if old_seconds:
+                                for old_sec in old_seconds:
+                                    self.processed_seconds.discard(old_sec)
+                                if self.verbose:
+                                    self.stdout.write(self.style.NOTICE(
+                                        f'🧹 Cleaned up {len(old_seconds)} old processed seconds (older than 5 minutes)'
+                                    ))
 
                     # Update next second boundary
                     next_second = int(time.time()) + 1
@@ -545,35 +571,48 @@ class Command(BaseCommand):
             # Group ticks by their exact second (rounded down)
             tick_second = int(dt.timestamp())  # Get Unix timestamp as integer (second boundary)
             
-            # DIAGNOSTIC: Log buffer operations
-            if self.total_ticks < 5 or self.total_ticks % 100 == 0:
-                # Lock for reading keys for log
-                with self.lock:
-                    keys_log = sorted(list(self.tick_buffer_1sec.keys())[-5:]) if self.tick_buffer_1sec else []
-                
-                self.stdout.write(self.style.NOTICE(
-                    f'📦 BUFFER: Adding tick to second {tick_second} ({dt.strftime("%H:%M:%S")}), '
-                    f'Current buffer keys: {keys_log}'
-                ))
-            
-            # LOCK ACQUIRE for writing
+            # BLOCK LATE TICKS: If this second has already been processed, skip 1-second buffer
+            is_late_tick = False
             with self.lock:
-                if tick_second not in self.tick_buffer_1sec:
-                    self.tick_buffer_1sec[tick_second] = []
-                    self.stdout.write(self.style.SUCCESS(
-                        f'🆕 Created new buffer slot for second {tick_second} ({dt.strftime("%H:%M:%S")})'
+                if tick_second in self.processed_seconds:
+                    # This second was already closed and processed - skip 1-second buffer
+                    is_late_tick = True
+                    if self.verbose:
+                        self.stdout.write(self.style.WARNING(
+                            f'⏭️  LATE TICK: Second {tick_second} ({dt.strftime("%H:%M:%S")}) '
+                            f'already processed. Skipping 1-second buffer. Delay: {(timezone.now() - dt).total_seconds():.1f}s'
+                        ))
+            
+            # Only add to 1-second buffer if not a late tick
+            if not is_late_tick:
+                # DIAGNOSTIC: Log buffer operations
+                if self.total_ticks < 5 or self.total_ticks % 100 == 0:
+                    # Lock for reading keys for log
+                    with self.lock:
+                        keys_log = sorted(list(self.tick_buffer_1sec.keys())[-5:]) if self.tick_buffer_1sec else []
+                    
+                    self.stdout.write(self.style.NOTICE(
+                        f'📦 BUFFER: Adding tick to second {tick_second} ({dt.strftime("%H:%M:%S")}), '
+                        f'Current buffer keys: {keys_log}'
                     ))
-                self.tick_buffer_1sec[tick_second].append(tick)
+                
+                # LOCK ACQUIRE for writing to 1-second buffer
+                with self.lock:
+                    if tick_second not in self.tick_buffer_1sec:
+                        self.tick_buffer_1sec[tick_second] = []
+                        self.stdout.write(self.style.SUCCESS(
+                            f'🆕 Created new buffer slot for second {tick_second} ({dt.strftime("%H:%M:%S")})'
+                        ))
+                    self.tick_buffer_1sec[tick_second].append(tick)
+                
+                # DEBUG: Log first tick added to each second
+                if self.verbose:
+                    with self.lock:
+                        is_first = len(self.tick_buffer_1sec[tick_second]) == 1
+                    if is_first:
+                        self.stdout.write(f'🆕 First tick added to second {tick_second} ({dt.strftime("%H:%M:%S")})')
             
-            # DEBUG: Log first tick added to each second
-            # Note: We can't safely check len() without lock, but for debug logging we can risk a slightly stale read
-            # or just move it inside lock if critical. Moving inside lock for correctness.
-            if self.verbose:
-                 with self.lock:
-                     is_first = len(self.tick_buffer_1sec[tick_second]) == 1
-                 if is_first:
-                    self.stdout.write(f'🆕 First tick added to second {tick_second} ({dt.strftime("%H:%M:%S")})')
-            
+            # Always add to 100-tick buffer (even late ticks can be part of 100-tick candles)
             self.tick_buffer_100tick.append(tick)
             self.tick_counter_100 += 1
             self.total_ticks += 1
@@ -606,11 +645,6 @@ class Command(BaseCommand):
         Args:
             second_timestamp: Unix timestamp (integer) for the second to process
         """
-        # Get ticks for this specific second and remove from buffer
-        # LOCK ACQUIRE for popping
-        with self.lock:
-            ticks = self.tick_buffer_1sec.pop(second_timestamp, [])
-        
         # Create timestamp from the second boundary (not from tick timestamps)
         try:
             timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
@@ -618,24 +652,41 @@ class Command(BaseCommand):
              self.stdout.write(self.style.ERROR(f'❌ Error converting timestamp {second_timestamp}: {e}'))
              return
         
-        # DIAGNOSTIC: Always log what we're trying to process
-        if True: # Always log for now to debug
-             self.stdout.write(self.style.NOTICE(
-                f'🔧 SecondSnapshot ATTEMPT: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
-                f'Found {len(ticks)} ticks in buffer'
-            ))
+        # STRICT DUPLICATE PREVENTION: Check if already processed (fast in-memory check)
+        with self.lock:
+            if second_timestamp in self.processed_seconds:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  SecondSnapshot SKIPPED: Second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}) '
+                    f'already processed (in-memory check)'
+                ))
+                return
         
-        # Check if candle already exists for this second (avoid duplicates)
-        # NOTE: This check might be slow if DB is under load. Consider caching latest timestamp.
+        # Also check database (slower but catches edge cases)
         existing = SecondSnapshot.objects.filter(
             ticker=self.ticker,
             timestamp=timestamp
         ).first()
         
         if existing:
-            # Already created, skip
-            self.stdout.write(self.style.WARNING(f'⚠️  SecondSnapshot SKIPPED: {timestamp.strftime("%H:%M:%S")} already exists'))
+            # Already exists in DB - mark as processed and skip
+            with self.lock:
+                self.processed_seconds.add(second_timestamp)
+            self.stdout.write(self.style.WARNING(
+                f'⚠️  SecondSnapshot SKIPPED: {timestamp.strftime("%H:%M:%S")} already exists in database'
+            ))
             return
+        
+        # Get ticks for this specific second and remove from buffer
+        # LOCK ACQUIRE for popping
+        with self.lock:
+            ticks = self.tick_buffer_1sec.pop(second_timestamp, [])
+        
+        # DIAGNOSTIC: Always log what we're trying to process
+        if True: # Always log for now to debug
+             self.stdout.write(self.style.NOTICE(
+                f'🔧 SecondSnapshot ATTEMPT: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
+                f'Found {len(ticks)} ticks in buffer'
+            ))
         
         try:
             if not ticks:
@@ -735,6 +786,10 @@ class Command(BaseCommand):
                 
                 self.total_1sec_candles += 1
                 self.last_second_timestamp = timestamp
+                
+                # Mark this second as processed to prevent duplicates
+                with self.lock:
+                    self.processed_seconds.add(second_timestamp)
                 
                 # ALWAYS LOG successful creation
                 self.stdout.write(self.style.SUCCESS(
