@@ -50,6 +50,17 @@ from .reddit_sentiment_analyzer import analyze_reddit_content_batch
 # Import market hours checker
 from api.utils.market_hours import is_market_open, get_market_status
 
+# Import real-time integration (optional - backwards compatible)
+try:
+    from .sentiment_integration import (
+        get_starting_scores_for_minute_analysis,
+        is_second_by_second_active,
+        save_minute_analysis_to_both_tables
+    )
+    REALTIME_INTEGRATION_AVAILABLE = True
+except ImportError:
+    REALTIME_INTEGRATION_AVAILABLE = False
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -1093,6 +1104,20 @@ def run_nasdaq_composite_analysis(finnhub_client):
     
     start_time = time.time()
     
+    # Check if second-by-second system is active
+    skip_finnhub = False
+    use_realtime_base = False
+    
+    if REALTIME_INTEGRATION_AVAILABLE:
+        if is_second_by_second_active('QLD'):
+            print("🔄 Second-by-second system ACTIVE - will skip Finnhub and decay")
+            skip_finnhub = True
+            use_realtime_base = True
+        else:
+            print("📊 Second-by-second system inactive - using normal mode")
+    else:
+        print("📊 Real-time integration not available - using normal mode")
+    
     # Step 1: Initialize or get NASDAQ composite ticker
     nasdaq_ticker, created = Ticker.objects.get_or_create(
         symbol='QLD',
@@ -1118,11 +1143,26 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Step 3: Fetch company news for all tickers with rate limiting
     print(f"\n📰 PHASE 1: Fetching company-specific news")
     print(f"   Weight in composite: {SENTIMENT_WEIGHTS['company_news']:.0%}")
-    company_news_dict = fetch_company_news_batch(
-        finnhub_client, 
-        list(NASDAQ_TOP_20.keys()),
-        lookback_minutes=5
-    )
+    
+    if skip_finnhub:
+        print("   ⏭️  Skipping Finnhub queries (already running second-by-second)")
+        print("   ✅ Using Finlight API only")
+        # Still call the function but Finnhub portion will return empty
+        # Finlight will still work
+        company_news_dict = {}
+        # Fetch only from Finlight (not Finnhub)
+        try:
+            finlight_news_preview = fetch_finlight_market_news()
+            print(f"   ✅ Fetched {len(finlight_news_preview)} Finlight articles")
+        except Exception as e:
+            print(f"   ⚠️  Finlight fetch failed: {e}")
+            finlight_news_preview = []
+    else:
+        company_news_dict = fetch_company_news_batch(
+            finnhub_client, 
+            list(NASDAQ_TOP_20.keys()),
+            lookback_minutes=5
+        )
     
     # Step 3.5: Check if we have any new articles
     print(f"\n🔍 Checking for new articles...")
@@ -1139,7 +1179,11 @@ def run_nasdaq_composite_analysis(finnhub_client):
             all_article_hashes.append(article_hash)
     
     # Also check general market news
-    market_news_preview = fetch_general_market_news(finnhub_client)
+    if skip_finnhub:
+        print("   ⏭️  Skipping Finnhub market news (already running second-by-second)")
+        market_news_preview = []
+    else:
+        market_news_preview = fetch_general_market_news(finnhub_client)
     for article in market_news_preview:  # Process all market articles (no limit)
         article_hash = get_article_hash(
             article.get('headline', ''),
@@ -1311,21 +1355,35 @@ def run_nasdaq_composite_analysis(finnhub_client):
                 # Extract news sentiment from previous run and apply decay
                 previous_news_composite = latest_run.avg_base_sentiment or 0.0
 
-                # Calculate time elapsed since last update (in minutes)
-                time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
-                minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
-
-                # Apply decay to previous score (no new articles)
-                # previous_news_composite is already in -100/+100 range (stored that way)
-                news_composite = apply_news_decay(previous_news_composite, minutes_elapsed)
-
-                # Cap at -100/+100 (already in correct scale, no multiplication needed)
-                news_composite = max(-100, min(100, news_composite))
-
-                print(f"\n📉 Applying decay (no new articles):")
-                print(f"   Previous score: {previous_news_composite:+.2f}")
-                print(f"   Minutes elapsed: {minutes_elapsed}")
-                print(f"   Decayed score: {news_composite:+.2f}")
+                # Check if we should use SecondSnapshot base (decay already applied)
+                if use_realtime_base:
+                    starting_scores = get_starting_scores_for_minute_analysis('QLD')
+                    if starting_scores and starting_scores['use_as_base']:
+                        news_composite = starting_scores['news']
+                        print(f"\n✅ Using SecondSnapshot base (no new articles):")
+                        print(f"   News from SecondSnapshot: {news_composite:+.2f}")
+                        print(f"   (Decay already applied 60x in second-by-second)")
+                        print(f"   Age: {starting_scores['age_seconds']:.1f} seconds")
+                    else:
+                        # Fallback to normal decay if SecondSnapshot too old
+                        time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
+                        minutes_elapsed = max(1, int(time_elapsed))
+                        news_composite = apply_news_decay(previous_news_composite, minutes_elapsed)
+                        news_composite = max(-100, min(100, news_composite))
+                        print(f"\n⚠️  SecondSnapshot too old, applying normal decay:")
+                        print(f"   Previous score: {previous_news_composite:+.2f}")
+                        print(f"   Minutes elapsed: {minutes_elapsed}")
+                        print(f"   Decayed score: {news_composite:+.2f}")
+                else:
+                    # Normal mode - apply decay
+                    time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
+                    minutes_elapsed = max(1, int(time_elapsed))
+                    news_composite = apply_news_decay(previous_news_composite, minutes_elapsed)
+                    news_composite = max(-100, min(100, news_composite))
+                    print(f"\n📉 Applying decay (no new articles):")
+                    print(f"   Previous score: {previous_news_composite:+.2f}")
+                    print(f"   Minutes elapsed: {minutes_elapsed}")
+                    print(f"   Decayed score: {news_composite:+.2f}")
 
                 # Calculate NEW composite score with 4-factor model
                 new_composite_score = (
@@ -1595,24 +1653,44 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Load previous news_composite score and apply decay
     latest_run = AnalysisRun.objects.filter(ticker=nasdaq_ticker).order_by('-timestamp').first()
 
-    if latest_run and latest_run.avg_base_sentiment is not None:
-        previous_news_composite = latest_run.avg_base_sentiment
-
-        # Calculate time elapsed since last update (in minutes)
-        time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
-        minutes_elapsed = max(1, int(time_elapsed))  # At least 1 minute
-
-        # Apply decay to previous score
-        decayed_score = apply_news_decay(previous_news_composite, minutes_elapsed)
-
-        print(f"\n📉 Applying decay to previous news score:")
-        print(f"   Previous score: {previous_news_composite:+.2f}")
-        print(f"   Minutes elapsed: {minutes_elapsed}")
-        print(f"   Decayed score: {decayed_score:+.2f}")
+    # Check if we should use SecondSnapshot base (decay already applied)
+    if use_realtime_base:
+        starting_scores = get_starting_scores_for_minute_analysis('QLD')
+        if starting_scores and starting_scores['use_as_base']:
+            decayed_score = starting_scores['news']
+            print(f"\n✅ Using SecondSnapshot base (with new articles):")
+            print(f"   News from SecondSnapshot: {decayed_score:+.2f}")
+            print(f"   (Decay already applied 60x in second-by-second)")
+            print(f"   Age: {starting_scores['age_seconds']:.1f} seconds")
+        else:
+            # Fallback to normal decay if SecondSnapshot too old
+            if latest_run and latest_run.avg_base_sentiment is not None:
+                previous_news_composite = latest_run.avg_base_sentiment
+                time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
+                minutes_elapsed = max(1, int(time_elapsed))
+                decayed_score = apply_news_decay(previous_news_composite, minutes_elapsed)
+                print(f"\n⚠️  SecondSnapshot too old, applying normal decay:")
+                print(f"   Previous score: {previous_news_composite:+.2f}")
+                print(f"   Minutes elapsed: {minutes_elapsed}")
+                print(f"   Decayed score: {decayed_score:+.2f}")
+            else:
+                decayed_score = 0.0
+                print(f"\n📰 First run - starting with score = 0")
     else:
-        # First run - no previous score
-        decayed_score = 0.0
-        print(f"\n📰 First run - starting with score = 0")
+        # Normal mode - apply decay
+        if latest_run and latest_run.avg_base_sentiment is not None:
+            previous_news_composite = latest_run.avg_base_sentiment
+            time_elapsed = (timezone.now() - latest_run.timestamp).total_seconds() / 60
+            minutes_elapsed = max(1, int(time_elapsed))
+            decayed_score = apply_news_decay(previous_news_composite, minutes_elapsed)
+            print(f"\n📉 Applying decay to previous news score:")
+            print(f"   Previous score: {previous_news_composite:+.2f}")
+            print(f"   Minutes elapsed: {minutes_elapsed}")
+            print(f"   Decayed score: {decayed_score:+.2f}")
+        else:
+            # First run - no previous score
+            decayed_score = 0.0
+            print(f"\n📰 First run - starting with score = 0")
 
     # Calculate new article impact (DIRECT WEIGHTING - no 70/30 split)
     # Average the weighted contributions across all articles
