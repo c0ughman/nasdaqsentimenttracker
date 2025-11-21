@@ -107,6 +107,17 @@ class Command(BaseCommand):
         if last_candle:
             self.stdout.write(self.style.SUCCESS(f'🔢 Resuming 100-tick candles from #{self.candle_100_number + 1}'))
         
+        # Initialize Finnhub real-time news (optional - fails gracefully if not configured)
+        try:
+            from api.management.commands.finnhub_realtime_v2 import initialize as init_finnhub
+            if init_finnhub():
+                self.stdout.write(self.style.SUCCESS('📰 Finnhub real-time news enabled'))
+            else:
+                self.stdout.write(self.style.NOTICE('📰 Finnhub disabled (API key not set or module unavailable)'))
+        except Exception as e:
+            self.stdout.write(self.style.NOTICE(f'📰 Finnhub disabled ({str(e)})'))
+
+        
         # Signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -496,6 +507,71 @@ class Command(BaseCommand):
                 ohlc_1sec_tick_count=tick_count,
                 source='eodhd_ws'
             )
+            
+            # ============================================================
+            # REAL-TIME SENTIMENT SCORING V2
+            # ============================================================
+            try:
+                from api.management.commands.sentiment_realtime_v2 import update_realtime_sentiment
+                from api.management.commands.finnhub_realtime_v2 import query_finnhub_for_news
+                
+                # Query Finnhub for news (non-blocking - uses threading)
+                try:
+                    finnhub_result = query_finnhub_for_news()
+                    if finnhub_result.get('queued_for_scoring', 0) > 0:
+                        self.stdout.write(self.style.SUCCESS(
+                            f'📰 Queued {finnhub_result["queued_for_scoring"]} {finnhub_result["symbol"]} articles for scoring'
+                        ))
+                except Exception as e:
+                    if self.verbose:
+                        self.stdout.write(self.style.WARNING(f'Finnhub query failed: {e}'))
+                
+                # Get last 60 seconds of snapshots for micro momentum
+                recent_snapshots = list(SecondSnapshot.objects.filter(
+                    ticker=self.ticker
+                ).order_by('-timestamp')[:60])
+                
+                # Force macro recalc every minute (when second = 0)
+                force_macro = (timestamp.second == 0)
+                
+                # Calculate sentiment components
+                sentiment_result = update_realtime_sentiment(
+                    recent_snapshots,
+                    ticker_symbol=self.symbol,
+                    force_macro_recalc=force_macro
+                )
+                
+                # Update the snapshot with sentiment scores
+                snapshot.composite_score = sentiment_result['composite']
+                snapshot.news_score_cached = sentiment_result['news']
+                snapshot.technical_score_cached = sentiment_result['technical']
+                snapshot.save()
+                
+                # Log sentiment every 10 candles
+                if self.verbose or self.total_1sec_candles % 10 == 0:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'💚 Sentiment #{self.total_1sec_candles}: '
+                        f'Composite={sentiment_result["composite"]:+.1f} '
+                        f'[News={sentiment_result["news"]:+.1f}, '
+                        f'Tech={sentiment_result["technical"]:+.1f}, '
+                        f'Micro={sentiment_result["micro_momentum"]:+.1f}] '
+                        f'(source: {sentiment_result["source"]})'
+                    ))
+            
+            except Exception as sentiment_error:
+                # Don't fail the whole candle if sentiment calculation fails
+                # This ensures backwards compatibility - price data still saved
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Sentiment calculation failed: {sentiment_error}'
+                ))
+                if self.verbose:
+                    import traceback
+                    self.stdout.write(traceback.format_exc())
+                    self.stdout.write(self.style.NOTICE(
+                        'Continuing without sentiment (price data still saved)'
+                    ))
+            
+            # ============================================================
             
             self.total_1sec_candles += 1
             self.last_second_timestamp = timestamp

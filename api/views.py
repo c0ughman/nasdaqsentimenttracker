@@ -716,3 +716,87 @@ def tick_candles_data(request):
             'error': 'Server error',
             'message': 'An error occurred while fetching tick candles data'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def realtime_sentiment(request):
+    """
+    Get second-by-second real-time sentiment data.
+    
+    Returns SecondSnapshot records with populated sentiment scores.
+    This endpoint serves the real-time composite sentiment that updates every second.
+    
+    Query params:
+        - symbol: Ticker symbol (default: QLD)
+        - seconds: Number of seconds to retrieve (default: 60, max: 300)
+    """
+    try:
+        # Get query parameters
+        symbol = request.GET.get('symbol', 'QLD').upper()
+        seconds = min(int(request.GET.get('seconds', 60)), 300)  # Cap at 5 minutes
+        
+        # Get ticker
+        ticker = get_object_or_404(Ticker, symbol=symbol)
+        
+        # Fetch recent SecondSnapshots with sentiment scores
+        snapshots = SecondSnapshot.objects.filter(
+            ticker=ticker,
+            composite_score__isnull=False  # Only return snapshots with sentiment
+        ).order_by('-timestamp')[:seconds]
+        
+        if not snapshots:
+            return Response({
+                'error': 'No sentiment data available',
+                'message': f'No real-time sentiment data found for {symbol}. Ensure WebSocket collector is running.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Convert to response format
+        data_points = []
+        for snap in reversed(snapshots):  # Oldest first for charting
+            data_points.append({
+                'timestamp': snap.timestamp.isoformat(),
+                'price': float(snap.ohlc_1sec_close),
+                'volume': snap.ohlc_1sec_volume,
+                'composite_score': float(snap.composite_score) if snap.composite_score else 0.0,
+                'news_component': float(snap.news_score_cached) if snap.news_score_cached else 0.0,
+                'technical_component': float(snap.technical_score_cached) if snap.technical_score_cached else 0.0,
+            })
+        
+        # Get latest values for summary
+        latest = snapshots[0]
+        
+        return Response({
+            'symbol': symbol,
+            'latest': {
+                'timestamp': latest.timestamp.isoformat(),
+                'composite_score': float(latest.composite_score) if latest.composite_score else 0.0,
+                'news_component': float(latest.news_score_cached) if latest.news_score_cached else 0.0,
+                'technical_component': float(latest.technical_score_cached) if latest.technical_score_cached else 0.0,
+                'price': float(latest.ohlc_1sec_close),
+                'volume': latest.ohlc_1sec_volume,
+            },
+            'data_points': data_points,
+            'count': len(data_points),
+            'timeframe_seconds': seconds
+        }, status=status.HTTP_200_OK)
+        
+    except Ticker.DoesNotExist:
+        return Response({
+            'error': 'Ticker not found',
+            'message': f'Ticker {symbol} not found in database'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except ValueError:
+        return Response({
+            'error': 'Invalid parameter',
+            'message': 'seconds parameter must be a valid integer'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error in realtime_sentiment: {e}', exc_info=True)
+        
+        return Response({
+            'error': 'Server error',
+            'message': 'An error occurred while fetching real-time sentiment data',
+            'detail': str(e) if settings.DEBUG else None
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

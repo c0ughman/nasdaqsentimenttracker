@@ -12,4 +12,5 @@ urlpatterns = [
     path('news/', views.news_articles, name='news_articles'),  # News articles endpoint for frontend
     path('second-candles/', views.second_candles_data, name='second_candles'),  # 1-second OHLCV data
     path('tick-candles/', views.tick_candles_data, name='tick_candles'),  # 100-tick OHLCV data
+    path('realtime-sentiment/', views.realtime_sentiment, name='realtime_sentiment'),  # Real-time sentiment (second-by-second)
 ]
