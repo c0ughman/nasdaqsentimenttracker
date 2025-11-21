@@ -73,6 +73,10 @@ class Command(BaseCommand):
         self.consecutive_429_errors = 0
         self.last_429_error_time = None
         
+        # Connection state tracking
+        self.connection_established = False  # Track if we ever successfully connected
+        self.last_connection_time = None
+        
     def add_arguments(self, parser):
         parser.add_argument(
             '--symbol',
@@ -262,6 +266,13 @@ class Command(BaseCommand):
         """Establish WebSocket connection"""
         self.stdout.write(self.style.WARNING('🔌 Connecting to EODHD WebSocket...'))
         
+        # Reset connection state for new attempt
+        was_connected_before = self.connection_established
+        if was_connected_before:
+            self.stdout.write(self.style.WARNING(
+                f'   Previous connection was established. Attempting reconnection...'
+            ))
+        
         # Create WebSocket app
         self.ws = websocket.WebSocketApp(
             WEBSOCKET_URL,
@@ -273,10 +284,19 @@ class Command(BaseCommand):
         
         # Disable SSL verification for macOS compatibility
         import ssl
-        self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        try:
+            self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(
+                f'❌ run_forever() exception: {e}'
+            ))
+            # run_forever() will call on_close, so we don't need to reset state here
+            raise
     
     def on_open(self, ws):
         """Called when WebSocket connection established"""
+        self.connection_established = True
+        self.last_connection_time = time.time()
         self.stdout.write(self.style.SUCCESS('✅ WebSocket connected!'))
         
         # Reset rate limit counter on successful connection
@@ -801,18 +821,55 @@ class Command(BaseCommand):
         if '429' in error_str or 'Too Many Requests' in error_str:
             self.consecutive_429_errors += 1
             self.last_429_error_time = time.time()
+            
+            if self.connection_established:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Rate limit detected (429) - Server closed connection due to too many requests. '
+                    f'Consecutive errors: {self.consecutive_429_errors}'
+                ))
+            else:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Rate limit detected (429) - Connection handshake rejected. '
+                    f'Consecutive errors: {self.consecutive_429_errors}'
+                ))
+        
+        # Log other common disconnection causes
+        elif '502' in error_str or 'Bad Gateway' in error_str:
             self.stdout.write(self.style.WARNING(
-                f'⚠️  Rate limit detected (429). Consecutive errors: {self.consecutive_429_errors}'
+                f'⚠️  Server error (502) - This may indicate server overload or maintenance'
+            ))
+        elif 'timeout' in error_str.lower():
+            self.stdout.write(self.style.WARNING(
+                f'⚠️  Connection timeout - Network or server issue'
             ))
     
     def on_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close"""
-        if close_status_code:
+        # Determine if this was an established connection or failed handshake
+        was_connected = self.connection_established
+        connection_duration = None
+        if self.last_connection_time:
+            connection_duration = time.time() - self.last_connection_time
+        
+        if was_connected:
             self.stdout.write(self.style.WARNING(
-                f'⚠️  WebSocket closed (code: {close_status_code})'
+                f'⚠️  WebSocket DISCONNECTED (was connected for {connection_duration:.1f}s)'
             ))
+            if close_status_code:
+                self.stdout.write(self.style.WARNING(
+                    f'   Close code: {close_status_code}, Message: {close_msg}'
+                ))
         else:
-            self.stdout.write(self.style.WARNING('⚠️  WebSocket closed'))
+            self.stdout.write(self.style.WARNING(
+                f'⚠️  WebSocket connection FAILED (handshake never completed)'
+            ))
+            if close_status_code:
+                self.stdout.write(self.style.WARNING(
+                    f'   Close code: {close_status_code}, Message: {close_msg}'
+                ))
+        
+        # Reset connection state
+        self.connection_established = False
     
     def cleanup(self):
         """Cleanup and display statistics"""
