@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Corrected Technical Indicator Cross-Reference Tool
-Compares QQQ (NASDAQ-100 ETF) data since that's what our system actually uses
+Compares QLD (NASDAQ-100 2x Leveraged ETF) data since that's what our system actually uses
 """
 
 import requests
@@ -14,17 +14,17 @@ import re
 
 def fetch_qqq_technical_data():
     """
-    Fetch QQQ technical indicators from Yahoo Finance
+    Fetch QLD technical indicators from Yahoo Finance
     (This matches what our system actually uses)
     """
-    print("🔍 Fetching QQQ technical data from Yahoo Finance...")
-    print("   (Our system uses QQQ as proxy for NASDAQ Composite)")
+    print("🔍 Fetching QLD technical data from Yahoo Finance...")
+    print("   (Our system uses QLD as proxy for NASDAQ Composite)")
     
     try:
         import yfinance as yf
         
-        # Get QQQ data (this is what our system actually uses)
-        ticker = yf.Ticker("QQQ")
+        # Get QLD data (this is what our system actually uses)
+        ticker = yf.Ticker("QLD")
         
         # Get 5-minute data for the last 24 hours
         end_time = datetime.now()
@@ -37,21 +37,21 @@ def fetch_qqq_technical_data():
         )
         
         if data.empty:
-            print("  ❌ No QQQ data available from Yahoo Finance")
+            print("  ❌ No QLD data available from Yahoo Finance")
             return None
             
-        print(f"  ✓ Retrieved {len(data)} QQQ data points from Yahoo Finance")
+        print(f"  ✓ Retrieved {len(data)} QLD data points from Yahoo Finance")
         
         # Calculate indicators using the same periods as our system
-        indicators = calculate_indicators_from_yahoo_data(data, symbol="QQQ")
+        indicators = calculate_indicators_from_yahoo_data(data, symbol="QLD")
         
         return indicators
         
     except Exception as e:
-        print(f"  ❌ Error fetching QQQ data: {e}")
+        print(f"  ❌ Error fetching QLD data: {e}")
         return None
 
-def calculate_indicators_from_yahoo_data(df, symbol="QQQ"):
+def calculate_indicators_from_yahoo_data(df, symbol="QLD"):
     """
     Calculate technical indicators from Yahoo Finance data
     using the same periods as our system
@@ -225,13 +225,13 @@ def main():
     print("🔍 CORRECTED TECHNICAL INDICATOR CROSS-REFERENCE TOOL")
     print("=" * 80)
     print(f"📅 Analysis Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📊 Primary Symbol: QQQ (NASDAQ-100 ETF) - What our system actually uses")
+    print(f"📊 Primary Symbol: QLD (NASDAQ-100 2x Leveraged ETF) - What our system actually uses")
     print(f"📊 Reference Symbol: ^IXIC (NASDAQ Composite) - For comparison")
     print(f"⏱️  Timeframe: 5-minute candles")
     print(f"📈 Lookback: 24 hours")
     print("=" * 80)
     
-    # Fetch QQQ data (what our system actually uses)
+    # Fetch QLD data (what our system actually uses)
     qqq_indicators = fetch_qqq_technical_data()
     
     # Fetch NASDAQ Composite for reference
@@ -242,11 +242,11 @@ def main():
     
     # Display comparison
     print("\n" + "=" * 80)
-    print("📊 COMPARISON RESULTS (QQQ vs Our System)")
+    print("📊 COMPARISON RESULTS (QLD vs Our System)")
     print("=" * 80)
     
     if qqq_indicators and our_indicators:
-        print(f"{'Indicator':<20} {'Yahoo QQQ':<15} {'Our System':<15} {'Difference':<15}")
+        print(f"{'Indicator':<20} {'Yahoo QLD':<15} {'Our System':<15} {'Difference':<15}")
         print("-" * 70)
         
         for key in qqq_indicators:
@@ -270,21 +270,21 @@ def main():
         our_price = our_indicators.get('qqq_price')
         
         print(f"NASDAQ Composite (^IXIC): {nasdaq_price:,.2f}")
-        print(f"QQQ (NASDAQ-100 ETF):     {qqq_price:,.2f}")
-        print(f"Our System (QQQ proxy):   {our_price:,.2f}")
+        print(f"QLD (NASDAQ-100 2x ETF):  {qqq_price:,.2f}")
+        print(f"Our System (QLD proxy):   {our_price:,.2f}")
         
         if qqq_price and our_price:
             price_diff = abs(qqq_price - our_price)
-            print(f"QQQ Price Difference:      {price_diff:.4f}")
+            print(f"QLD Price Difference:      {price_diff:.4f}")
     
     print("\n" + "=" * 80)
     print("✅ Corrected cross-reference analysis complete!")
     print("=" * 80)
     print("\n📝 KEY FINDINGS:")
-    print("• Our system uses QQQ (NASDAQ-100 ETF) as a proxy for NASDAQ Composite")
-    print("• QQQ prices are ~$600, NASDAQ Composite prices are ~$22,700")
+    print("• Our system uses QLD (NASDAQ-100 2x Leveraged ETF) as a proxy for NASDAQ Composite")
+    print("• QLD prices are ~$140-180, NASDAQ Composite prices are ~$22,700")
     print("• This explains the large price differences in the original comparison")
-    print("• Technical indicators should now be comparable between QQQ sources")
+    print("• Technical indicators should now be comparable between QLD sources")
 
 if __name__ == "__main__":
     main()

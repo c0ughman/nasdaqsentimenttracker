@@ -24,7 +24,7 @@ def fetch_latest_ohlcv_from_yfinance(symbol='QLD', interval='1m'):
     - Uses second-to-last candle to avoid incomplete data
 
     Args:
-        symbol: Ticker symbol (default: 'QQQ' for NASDAQ-100 ETF)
+        symbol: Ticker symbol (default: 'QLD' for NASDAQ-100 2x Leveraged ETF)
         interval: Candle interval ('1m', '5m', etc.)
 
     Returns:
@@ -111,7 +111,7 @@ def fetch_latest_ohlcv_from_websocket_db(symbol='QLD', window_seconds=60):
     and aggregates them into a 1-minute candle.
     
     Args:
-        symbol: Ticker symbol (default: 'QQQ' for NASDAQ-100 ETF)
+        symbol: Ticker symbol (default: 'QLD' for NASDAQ-100 2x Leveraged ETF)
         window_seconds: Time window to aggregate in seconds (default: 60 = 1 minute)
     
     Returns:
@@ -184,7 +184,7 @@ def fetch_latest_ohlcv_with_fallback(symbol='QLD', interval='1m'):
     This provides seamless transition between data sources without breaking the analysis.
     
     Args:
-        symbol: Ticker symbol (default: 'QQQ' for NASDAQ-100 ETF)
+        symbol: Ticker symbol (default: 'QLD' for NASDAQ-100 2x Leveraged ETF)
         interval: Y-finance interval, only used for fallback (default: '1m')
     
     Returns:
@@ -218,7 +218,7 @@ def fetch_ohlcv_data_from_db(ticker_symbol='QLD', hours_back=24):
     Fetch OHLCV (Open, High, Low, Close, Volume) data from our database.
 
     Args:
-        ticker_symbol: Ticker symbol ('QQQ' for NASDAQ-100 ETF)
+        ticker_symbol: Ticker symbol ('QLD' for NASDAQ-100 2x Leveraged ETF)
         hours_back: How many hours of historical data to fetch
 
     Returns:
@@ -400,7 +400,7 @@ def calculate_all_indicators(symbol, resolution='5', hours_back=24, config=None)
     Fetch OHLCV data from database and calculate all technical indicators.
 
     Args:
-        symbol: Stock ticker (e.g., 'NASDAQ', 'QQQ') - not used anymore, kept for compatibility
+        symbol: Stock ticker (e.g., 'NASDAQ', 'QLD') - not used anymore, kept for compatibility
         resolution: Time resolution - not used (data comes from database)
         hours_back: Hours of historical data to fetch from database
         config: Dictionary with indicator periods (from nasdaq_config.INDICATOR_PERIODS)

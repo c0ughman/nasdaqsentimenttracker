@@ -84,7 +84,7 @@ class Command(BaseCommand):
         )
         
     def handle(self, *args, **options):
-        self.symbol = options.get('symbol', 'QQQ')
+        self.symbol = options.get('symbol', 'QLD')
         self.verbose = options.get('verbose', False)
         self.skip_market_hours = options.get('skip_market_hours', False)
         
@@ -128,7 +128,7 @@ class Command(BaseCommand):
             '🚀 EODHD WebSocket Collector V2 (Second-by-Second Aggregation)\n'
             '='*70
         ))
-        self.stdout.write(f'📊 Ticker: QQQ (NASDAQ-100 ETF)')
+        self.stdout.write(f'📊 Ticker: QLD (NASDAQ-100 2x Leveraged ETF)')
         self.stdout.write(f'📡 Symbol: {self.symbol}')
         self.stdout.write(f'⏰ Market Hours: 9:30 AM - 4:00 PM EST')
         self.stdout.write(f'💾 Saves: 1-second candles + 100-tick candles')

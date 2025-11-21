@@ -98,7 +98,7 @@ def extract_stock_tickers(text):
     nasdaq_tickers = {
         'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'GOOG', 'AMZN', 'META', 'TSLA',
         'AVGO', 'COST', 'NFLX', 'ASML', 'AMD', 'ADBE', 'PEP', 'CSCO',
-        'TMUS', 'INTC', 'CMCSA', 'QCOM', 'INTU', 'QQQ'
+        'TMUS', 'INTC', 'CMCSA', 'QCOM', 'INTU', 'QLD', 'QQQ'
     }
 
     found_tickers = set()

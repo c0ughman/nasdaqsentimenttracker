@@ -955,7 +955,7 @@ def check_if_new_recommendations_available(finnhub_client, sample_symbols=None):
     print(f"  🔍 Checking for new recommendations (sampling {len(sample_symbols)} stocks)...")
     
     # Get the latest analysis run to compare against
-    latest_run = AnalysisRun.objects.filter(ticker__symbol='QQQ').order_by('-timestamp').first()
+    latest_run = AnalysisRun.objects.filter(ticker__symbol='QLD').order_by('-timestamp').first()
     
     if not latest_run or latest_run.analyst_recommendations_count == 0:
         print(f"    No previous recommendations found - fetching all")
@@ -1099,7 +1099,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     Uses hybrid approach: company news (70%) + market news (30%)
     """
     print("\n" + "="*80)
-    print("🚀 STARTING NASDAQ-100 (QQQ) SENTIMENT ANALYSIS")
+    print("🚀 STARTING NASDAQ-100 (QLD) SENTIMENT ANALYSIS")
     print("="*80)
     
     start_time = time.time()
@@ -1305,7 +1305,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
         if latest_run:
             # Fetch current stock price and OHLCV (WebSocket with Y-finance fallback)
             try:
-                ohlcv = fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m')
+                ohlcv = fetch_latest_ohlcv_with_fallback(symbol='QLD', interval='1m')
 
                 if ohlcv:
                     new_price = Decimal(str(ohlcv['close']))
@@ -1316,7 +1316,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
                     new_change = ((ohlcv['close'] - ohlcv['open']) / ohlcv['open'] * 100) if ohlcv['open'] != 0 else 0
                 else:
                     # Fallback to Finnhub
-                    quote = finnhub_client.quote('QQQ')
+                    quote = finnhub_client.quote('QLD')
                     new_price = Decimal(str(quote['c']))
                     new_open = Decimal(str(quote.get('o', quote['c'])))
                     new_high = Decimal(str(quote.get('h', quote['c'])))
@@ -1474,7 +1474,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
                         articles_analyzed=contrib.articles_analyzed
                     )
                 
-                print(f"📊 Updated QQQ Price: ${new_price:.2f} ({new_change:+.2f}%)")
+                print(f"📊 Updated QLD Price: ${new_price:.2f} ({new_change:+.2f}%)")
                 print(f"✅ Created new run #{new_run.id} with updated price (sentiment unchanged)")
                 print(f"⏱️  Completed in {time.time() - start_time:.1f} seconds")
                 
@@ -1724,7 +1724,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     # Step 8: Get NASDAQ-100 price and OHLCV data (WebSocket with Y-finance fallback)
     try:
         print(f"\n📊 Fetching real-time OHLCV data...")
-        ohlcv = fetch_latest_ohlcv_with_fallback(symbol='QQQ', interval='1m')
+        ohlcv = fetch_latest_ohlcv_with_fallback(symbol='QLD', interval='1m')
 
         if ohlcv:
             index_price = Decimal(str(ohlcv['close']))
@@ -1742,7 +1742,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
         print(f"\n⚠️ Could not fetch OHLCV from Yahoo Finance: {e}")
         print(f"  Falling back to Finnhub quote...")
         try:
-            quote = finnhub_client.quote('QQQ')
+            quote = finnhub_client.quote('QLD')
             index_price = Decimal(str(quote['c']))
             price_open = Decimal(str(quote.get('o', quote['c'])))
             price_high = Decimal(str(quote.get('h', quote['c'])))
@@ -1819,7 +1819,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
     )
 
     print(f"\n{'='*80}")
-    print(f"🎯 FINAL QQQ SENTIMENT SCORE: {final_composite_score:+.2f}")
+    print(f"🎯 FINAL QLD SENTIMENT SCORE: {final_composite_score:+.2f}")
     print(f"{'='*80}")
     print(f"   News Sentiment:            {news_composite:+.2f} × {NEWS_WEIGHT:.0%} = {news_composite * NEWS_WEIGHT:+.2f}")
     print(f"   Social Media (Reddit):     {reddit_sentiment:+.2f} × {SOCIAL_WEIGHT:.0%} = {reddit_sentiment * SOCIAL_WEIGHT:+.2f}")
@@ -1927,7 +1927,7 @@ def run_nasdaq_composite_analysis(finnhub_client):
             NewsArticle.objects.update_or_create(
                 article_hash=article_data['article_hash'],
                 defaults={
-                    'ticker': nasdaq_ticker if article_data['article_type'] == 'market' else ticker_objects.get(article_data.get('ticker_symbol', 'QQQ'), nasdaq_ticker),
+                    'ticker': nasdaq_ticker if article_data['article_type'] == 'market' else ticker_objects.get(article_data.get('ticker_symbol', 'QLD'), nasdaq_ticker),
                     'analysis_run': analysis_run,
                     'headline': article_data['headline'],
                     'summary': article_data['summary'],

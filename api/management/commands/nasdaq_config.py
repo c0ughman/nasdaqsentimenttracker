@@ -118,8 +118,8 @@ API_RATE_LIMIT_DELAY = 0.5  # 500ms between requests to avoid rate limiting
 # TECHNICAL INDICATORS CONFIGURATION
 # ============================================================================
 
-# Symbol for technical indicators (QQQ - NASDAQ-100 ETF)
-INDICATOR_SYMBOLS = ['QQQ']  # Using QQQ for all technical indicators
+# Symbol for technical indicators (QLD - NASDAQ-100 2x Leveraged ETF)
+INDICATOR_SYMBOLS = ['QLD']  # Using QLD for all technical indicators
 
 # Timeframe for indicators (5-minute candles for day trading)
 INDICATOR_RESOLUTION = '5'  # 5-minute intervals

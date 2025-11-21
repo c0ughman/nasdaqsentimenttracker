@@ -166,7 +166,7 @@ class AnalysisRun(models.Model):
     new_articles = models.IntegerField(default=0)
 
     # TECHNICAL INDICATORS (from Alpha Vantage - 5min intervals for day trading)
-    # All indicators calculated on QQQ (NASDAQ-100 ETF) as proxy
+    # All indicators calculated on QLD (NASDAQ-100 2x Leveraged ETF) as proxy
 
     # RSI (Relative Strength Index) - Overbought/Oversold indicator
     rsi_14 = models.FloatField(null=True, blank=True, help_text="RSI 14-period on 5-min chart (0-100)")
@@ -197,8 +197,8 @@ class AnalysisRun(models.Model):
     # ATR (Average True Range) - Volatility indicator
     atr_14 = models.FloatField(null=True, blank=True, help_text="ATR 14-period on 5-min chart")
 
-    # QQQ price for correlation analysis
-    qqq_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="QQQ ETF price at analysis time")
+    # QLD/QQQ price for correlation analysis (field name kept as qqq_price for backwards compatibility)
+    qqq_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="QLD ETF price at analysis time (formerly QQQ)")
 
     # VXN (NASDAQ-100 Volatility Index) - Market fear gauge for NASDAQ
     vxn_index = models.FloatField(null=True, blank=True, help_text="VXN (NASDAQ-100 Volatility Index) at analysis time")
