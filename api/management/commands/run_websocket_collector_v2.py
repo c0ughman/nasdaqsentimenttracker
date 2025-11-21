@@ -14,6 +14,7 @@ import json
 import time
 import signal
 import sys
+import threading
 from datetime import datetime, time as datetime_time
 from collections import deque
 from django.core.management.base import BaseCommand
@@ -50,6 +51,9 @@ class Command(BaseCommand):
         self.ws = None
         self.ticker = None
         self.running = True
+        
+        # Thread safety
+        self.lock = threading.Lock()
         
         # Tick buffers
         self.tick_buffer_1sec = {}  # Dict keyed by second timestamp (int) -> list of ticks
@@ -263,11 +267,42 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING('⏳ Waiting for server confirmation and data stream...'))
         
         # Start aggregation timer
-        import threading
         self.aggregation_thread = threading.Thread(target=self.aggregation_loop, daemon=True)
         self.aggregation_thread.start()
-        self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started\n'))
+        self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started'))
+
+        # Start news fetch timer
+        self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
+        self.news_thread.start()
+        self.stdout.write(self.style.SUCCESS('📰 News fetch loop started\n'))
     
+    def news_loop(self):
+        """Run periodically to fetch news (non-blocking)"""
+        self.stdout.write(self.style.SUCCESS('📰 News loop started'))
+        
+        while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
+            try:
+                from api.management.commands.finnhub_realtime_v2 import query_finnhub_for_news
+                
+                # This function manages its own rate limiting (50s on, 10s off)
+                # and puts articles into a queue for processing
+                finnhub_result = query_finnhub_for_news()
+                
+                if finnhub_result.get('queued_for_scoring', 0) > 0:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'📰 Queued {finnhub_result["queued_for_scoring"]} {finnhub_result["symbol"]} articles for scoring'
+                    ))
+                elif finnhub_result.get('error'):
+                    if self.verbose:
+                        self.stdout.write(self.style.WARNING(f'Finnhub query error: {finnhub_result.get("error")}'))
+                        
+            except Exception as e:
+                if self.verbose:
+                    self.stdout.write(self.style.ERROR(f'❌ News loop error: {e}'))
+            
+            # Sleep 1 second
+            time.sleep(1)
+
     def aggregation_loop(self):
         """Run every second on the dot to create 1-second candles"""
         self.stdout.write(self.style.SUCCESS('🔄 Aggregation loop started'))
@@ -296,14 +331,20 @@ class Command(BaseCommand):
             if loop_count <= 5 or loop_count % 10 == 0:
                 current_dt = datetime.fromtimestamp(current_second, tz=pytz.UTC)
                 previous_dt = datetime.fromtimestamp(previous_second, tz=pytz.UTC)
-                buffer_seconds = sorted(list(self.tick_buffer_1sec.keys()))
+                
+                # LOCK ACQUIRE for reading keys
+                with self.lock:
+                    buffer_seconds = sorted(list(self.tick_buffer_1sec.keys()))
+                    prev_in_buffer = previous_second in self.tick_buffer_1sec
+                    prev_tick_count = len(self.tick_buffer_1sec.get(previous_second, []))
+                
                 self.stdout.write(self.style.WARNING(
                     f'⏱️  AGGREGATION TIMING:\n'
                     f'   System time: {current_dt.strftime("%H:%M:%S")} (ts={current_second})\n'
                     f'   Processing: {previous_dt.strftime("%H:%M:%S")} (ts={previous_second})\n'
                     f'   Buffer has {len(buffer_seconds)} seconds: {buffer_seconds[-10:] if len(buffer_seconds) > 10 else buffer_seconds}\n'
-                    f'   Previous second in buffer? {previous_second in self.tick_buffer_1sec}\n'
-                    f'   Tick count for previous second: {len(self.tick_buffer_1sec.get(previous_second, []))}'
+                    f'   Previous second in buffer? {prev_in_buffer}\n'
+                    f'   Tick count for previous second: {prev_tick_count}'
                 ))
             
             # Only process if we haven't already processed this second
@@ -403,21 +444,32 @@ class Command(BaseCommand):
             
             # DIAGNOSTIC: Log buffer operations
             if self.total_ticks < 5 or self.total_ticks % 100 == 0:
+                # Lock for reading keys for log
+                with self.lock:
+                    keys_log = sorted(list(self.tick_buffer_1sec.keys())[-5:]) if self.tick_buffer_1sec else []
+                
                 self.stdout.write(self.style.NOTICE(
                     f'📦 BUFFER: Adding tick to second {tick_second} ({dt.strftime("%H:%M:%S")}), '
-                    f'Current buffer keys: {sorted(list(self.tick_buffer_1sec.keys())[-5:]) if self.tick_buffer_1sec else []}'
+                    f'Current buffer keys: {keys_log}'
                 ))
             
-            if tick_second not in self.tick_buffer_1sec:
-                self.tick_buffer_1sec[tick_second] = []
-                self.stdout.write(self.style.SUCCESS(
-                    f'🆕 Created new buffer slot for second {tick_second} ({dt.strftime("%H:%M:%S")})'
-                ))
-            self.tick_buffer_1sec[tick_second].append(tick)
+            # LOCK ACQUIRE for writing
+            with self.lock:
+                if tick_second not in self.tick_buffer_1sec:
+                    self.tick_buffer_1sec[tick_second] = []
+                    self.stdout.write(self.style.SUCCESS(
+                        f'🆕 Created new buffer slot for second {tick_second} ({dt.strftime("%H:%M:%S")})'
+                    ))
+                self.tick_buffer_1sec[tick_second].append(tick)
             
             # DEBUG: Log first tick added to each second
-            if self.verbose and len(self.tick_buffer_1sec[tick_second]) == 1:
-                self.stdout.write(f'🆕 First tick added to second {tick_second} ({dt.strftime("%H:%M:%S")})')
+            # Note: We can't safely check len() without lock, but for debug logging we can risk a slightly stale read
+            # or just move it inside lock if critical. Moving inside lock for correctness.
+            if self.verbose:
+                 with self.lock:
+                     is_first = len(self.tick_buffer_1sec[tick_second]) == 1
+                 if is_first:
+                    self.stdout.write(f'🆕 First tick added to second {tick_second} ({dt.strftime("%H:%M:%S")})')
             
             self.tick_buffer_100tick.append(tick)
             self.tick_counter_100 += 1
@@ -452,7 +504,9 @@ class Command(BaseCommand):
             second_timestamp: Unix timestamp (integer) for the second to process
         """
         # Get ticks for this specific second
-        ticks = self.tick_buffer_1sec.get(second_timestamp, [])
+        # LOCK ACQUIRE for reading/copying
+        with self.lock:
+            ticks = self.tick_buffer_1sec.get(second_timestamp, [])[:]
         
         # Create timestamp from the second boundary (not from tick timestamps)
         timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
@@ -475,7 +529,8 @@ class Command(BaseCommand):
         
         # DEBUG: Log buffer state
         if self.verbose:
-            buffer_keys = list(self.tick_buffer_1sec.keys())
+            with self.lock:
+                buffer_keys = list(self.tick_buffer_1sec.keys())
             self.stdout.write(f'🔍 Checking second {second_timestamp}, buffer has keys: {buffer_keys}, ticks count: {len(ticks)}')
         
         try:
@@ -506,18 +561,10 @@ class Command(BaseCommand):
             
             try:
                 from api.management.commands.sentiment_realtime_v2 import update_realtime_sentiment
-                from api.management.commands.finnhub_realtime_v2 import query_finnhub_for_news
                 
-                # Query Finnhub for news (non-blocking - uses threading)
-                try:
-                    finnhub_result = query_finnhub_for_news()
-                    if finnhub_result.get('queued_for_scoring', 0) > 0:
-                        self.stdout.write(self.style.SUCCESS(
-                            f'📰 Queued {finnhub_result["queued_for_scoring"]} {finnhub_result["symbol"]} articles for scoring'
-                        ))
-                except Exception as e:
-                    if self.verbose:
-                        self.stdout.write(self.style.WARNING(f'Finnhub query failed: {e}'))
+                # NOTE: News fetching (query_finnhub_for_news) is now handled in a separate thread (news_loop)
+                # It populates a queue that update_realtime_sentiment pulls from automatically.
+                # We no longer call query_finnhub_for_news() here to avoid blocking the aggregation loop.
                 
                 # Get last 60 seconds of snapshots for micro momentum
                 recent_snapshots = list(SecondSnapshot.objects.filter(
@@ -594,15 +641,17 @@ class Command(BaseCommand):
                 ))
             
             # Remove processed ticks from buffer (cleanup old seconds)
-            if second_timestamp in self.tick_buffer_1sec:
-                del self.tick_buffer_1sec[second_timestamp]
-            
-            # Cleanup old seconds (keep only last 5 seconds in buffer)
-            current_second = int(time.time())
-            seconds_to_keep = [current_second - i for i in range(5)]
-            keys_to_remove = [k for k in self.tick_buffer_1sec.keys() if k not in seconds_to_keep]
-            for k in keys_to_remove:
-                del self.tick_buffer_1sec[k]
+            # LOCK ACQUIRE for deletion
+            with self.lock:
+                if second_timestamp in self.tick_buffer_1sec:
+                    del self.tick_buffer_1sec[second_timestamp]
+                
+                # Cleanup old seconds (keep only last 5 seconds in buffer)
+                current_second = int(time.time())
+                seconds_to_keep = [current_second - i for i in range(5)]
+                keys_to_remove = [k for k in self.tick_buffer_1sec.keys() if k not in seconds_to_keep]
+                for k in keys_to_remove:
+                    del self.tick_buffer_1sec[k]
         
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'❌ Error creating 1-sec candle: {e}'))
@@ -674,8 +723,12 @@ class Command(BaseCommand):
     def cleanup(self):
         """Cleanup and display statistics"""
         # Process any remaining ticks for all seconds in buffer
-        if self.tick_buffer_1sec:
-            for second_timestamp in sorted(self.tick_buffer_1sec.keys()):
+        # LOCK ACQUIRE for key listing
+        with self.lock:
+            keys = sorted(self.tick_buffer_1sec.keys())
+            
+        if keys:
+            for second_timestamp in keys:
                 self.aggregate_and_save_1sec_candle(second_timestamp)
         
         if self.ws:
@@ -697,4 +750,3 @@ class Command(BaseCommand):
             f'='*70
         ))
         self.stdout.write(self.style.SUCCESS('✅ Collector stopped cleanly'))
-
