@@ -68,7 +68,7 @@ ARTICLE_CACHE_KEY = 'finnhub_articles_processed'
 ARTICLE_CACHE_DURATION = 3600  # 1 hour
 
 # Queues for threading
-article_to_score_queue = queue.Queue()  # Articles needing scoring
+article_to_score_queue = queue.Queue(maxsize=50)  # Articles needing scoring (capped to prevent memory exhaustion)
 scored_article_queue = queue.Queue()  # Articles that have been scored
 
 # Scoring thread
@@ -339,9 +339,13 @@ def query_finnhub_for_news():
                 'published': article.get('datetime', 0)
             }
             
-            article_to_score_queue.put(article_data)
-            queued += 1
-            logger.info(f"Queued {symbol} article for scoring: {article_data['headline'][:60]}...")
+            # Try to queue, but don't block if queue is full (prevents memory exhaustion)
+            try:
+                article_to_score_queue.put_nowait(article_data)
+                queued += 1
+                logger.info(f"Queued {symbol} article for scoring: {article_data['headline'][:60]}...")
+            except queue.Full:
+                logger.warning(f"Article queue full, skipping {symbol} article (system under load)")
         
         return {
             'symbol': symbol,

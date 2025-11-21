@@ -495,22 +495,15 @@ class Command(BaseCommand):
             total_volume = sum(t.volume for t in ticks)
             tick_count = len(ticks)
             
-            # Save to SecondSnapshot with exact second boundary timestamp
-            snapshot = SecondSnapshot.objects.create(
-                ticker=self.ticker,
-                timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
-                ohlc_1sec_open=open_price,
-                ohlc_1sec_high=high_price,
-                ohlc_1sec_low=low_price,
-                ohlc_1sec_close=close_price,
-                ohlc_1sec_volume=total_volume,
-                ohlc_1sec_tick_count=tick_count,
-                source='eodhd_ws'
-            )
+            # ============================================================
+            # REAL-TIME SENTIMENT SCORING V2 (calculate BEFORE creating snapshot)
+            # ============================================================
+            sentiment_scores = {
+                'composite': None,
+                'news': None,
+                'technical': None
+            }
             
-            # ============================================================
-            # REAL-TIME SENTIMENT SCORING V2
-            # ============================================================
             try:
                 from api.management.commands.sentiment_realtime_v2 import update_realtime_sentiment
                 from api.management.commands.finnhub_realtime_v2 import query_finnhub_for_news
@@ -541,11 +534,10 @@ class Command(BaseCommand):
                     force_macro_recalc=force_macro
                 )
                 
-                # Update the snapshot with sentiment scores
-                snapshot.composite_score = sentiment_result['composite']
-                snapshot.news_score_cached = sentiment_result['news']
-                snapshot.technical_score_cached = sentiment_result['technical']
-                snapshot.save()
+                # Store scores for snapshot creation
+                sentiment_scores['composite'] = sentiment_result['composite']
+                sentiment_scores['news'] = sentiment_result['news']
+                sentiment_scores['technical'] = sentiment_result['technical']
                 
                 # Log sentiment every 10 candles
                 if self.verbose or self.total_1sec_candles % 10 == 0:
@@ -560,7 +552,7 @@ class Command(BaseCommand):
             
             except Exception as sentiment_error:
                 # Don't fail the whole candle if sentiment calculation fails
-                # This ensures backwards compatibility - price data still saved
+                # Snapshot will be created with NULL sentiment scores
                 self.stdout.write(self.style.WARNING(
                     f'⚠️  Sentiment calculation failed: {sentiment_error}'
                 ))
@@ -568,10 +560,27 @@ class Command(BaseCommand):
                     import traceback
                     self.stdout.write(traceback.format_exc())
                     self.stdout.write(self.style.NOTICE(
-                        'Continuing without sentiment (price data still saved)'
+                        'Creating snapshot with price data only (no sentiment)'
                     ))
             
             # ============================================================
+            
+            # Save to SecondSnapshot with exact second boundary timestamp
+            # Sentiment scores are included if calculated successfully, otherwise NULL
+            snapshot = SecondSnapshot.objects.create(
+                ticker=self.ticker,
+                timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
+                ohlc_1sec_open=open_price,
+                ohlc_1sec_high=high_price,
+                ohlc_1sec_low=low_price,
+                ohlc_1sec_close=close_price,
+                ohlc_1sec_volume=total_volume,
+                ohlc_1sec_tick_count=tick_count,
+                composite_score=sentiment_scores['composite'],
+                news_score_cached=sentiment_scores['news'],
+                technical_score_cached=sentiment_scores['technical'],
+                source='eodhd_ws'
+            )
             
             self.total_1sec_candles += 1
             self.last_second_timestamp = timestamp
