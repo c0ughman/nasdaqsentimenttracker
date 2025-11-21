@@ -367,9 +367,6 @@ class Command(BaseCommand):
             while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
                 try:
                     loop_count += 1
-                    if loop_count % 10 == 0:  # Log every 10 seconds
-                        self.stdout.write(f'🔄 Aggregation loop iteration #{loop_count}')
-                        
                     # Sleep until next second boundary
                     now = time.time()
                     sleep_time = next_second - now
@@ -815,7 +812,13 @@ class Command(BaseCommand):
     def on_error(self, ws, error):
         """Handle WebSocket errors"""
         error_str = str(error)
-        self.stdout.write(self.style.ERROR(f'❌ WebSocket error: {error}'))
+        
+        self.stdout.write(self.style.ERROR(
+            '\n' + '='*70 + '\n'
+            '❌ WEBSOCKET ERROR EVENT\n'
+            '='*70 + '\n'
+            f'Error Details: {error}\n'
+        ))
         
         # Detect 429 rate limiting errors
         if '429' in error_str or 'Too Many Requests' in error_str:
@@ -824,24 +827,39 @@ class Command(BaseCommand):
             
             if self.connection_established:
                 self.stdout.write(self.style.WARNING(
-                    f'⚠️  Rate limit detected (429) - Server closed connection due to too many requests. '
-                    f'Consecutive errors: {self.consecutive_429_errors}'
+                    f'🚫 Error Type: RATE LIMIT (429) - Server closed ESTABLISHED connection\n'
+                    f'   Reason: Too many requests detected by server\n'
+                    f'   Consecutive 429 errors: {self.consecutive_429_errors}\n'
+                    f'   Connection was active before this error'
                 ))
             else:
                 self.stdout.write(self.style.WARNING(
-                    f'⚠️  Rate limit detected (429) - Connection handshake rejected. '
-                    f'Consecutive errors: {self.consecutive_429_errors}'
+                    f'🚫 Error Type: RATE LIMIT (429) - Connection HANDSHAKE REJECTED\n'
+                    f'   Reason: Server rejected connection attempt due to rate limiting\n'
+                    f'   Consecutive 429 errors: {self.consecutive_429_errors}\n'
+                    f'   Connection never established'
                 ))
         
         # Log other common disconnection causes
         elif '502' in error_str or 'Bad Gateway' in error_str:
             self.stdout.write(self.style.WARNING(
-                f'⚠️  Server error (502) - This may indicate server overload or maintenance'
+                f'🚫 Error Type: SERVER ERROR (502 Bad Gateway)\n'
+                f'   Reason: Server is overloaded or undergoing maintenance\n'
+                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
             ))
         elif 'timeout' in error_str.lower():
             self.stdout.write(self.style.WARNING(
-                f'⚠️  Connection timeout - Network or server issue'
+                f'🚫 Error Type: CONNECTION TIMEOUT\n'
+                f'   Reason: Network or server did not respond in time\n'
+                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
             ))
+        else:
+            self.stdout.write(self.style.WARNING(
+                f'🚫 Error Type: UNKNOWN\n'
+                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+            ))
+        
+        self.stdout.write(self.style.ERROR('='*70 + '\n'))
     
     def on_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close"""
@@ -851,22 +869,44 @@ class Command(BaseCommand):
         if self.last_connection_time:
             connection_duration = time.time() - self.last_connection_time
         
+        self.stdout.write(self.style.WARNING(
+            '\n' + '='*70 + '\n'
+            '🔌 WEBSOCKET DISCONNECTION EVENT\n'
+            '='*70
+        ))
+        
         if was_connected:
             self.stdout.write(self.style.WARNING(
-                f'⚠️  WebSocket DISCONNECTED (was connected for {connection_duration:.1f}s)'
+                f'📊 Connection Status: ESTABLISHED connection was CLOSED\n'
+                f'⏱️  Connection Duration: {connection_duration:.1f} seconds\n'
+                f'📈 Total ticks collected: {self.total_ticks:,}\n'
+                f'📊 SecondSnapshots created: {self.total_1sec_candles:,}'
             ))
-            if close_status_code:
+        else:
+            self.stdout.write(self.style.WARNING(
+                f'📊 Connection Status: HANDSHAKE FAILED (connection never established)\n'
+                f'❌ Could not complete WebSocket handshake with server'
+            ))
+        
+        if close_status_code:
+            self.stdout.write(self.style.WARNING(
+                f'🔢 Close Code: {close_status_code}'
+            ))
+            if close_msg:
                 self.stdout.write(self.style.WARNING(
-                    f'   Close code: {close_status_code}, Message: {close_msg}'
+                    f'💬 Close Message: {close_msg}'
                 ))
         else:
             self.stdout.write(self.style.WARNING(
-                f'⚠️  WebSocket connection FAILED (handshake never completed)'
+                f'🔢 Close Code: None (abnormal closure)'
             ))
-            if close_status_code:
-                self.stdout.write(self.style.WARNING(
-                    f'   Close code: {close_status_code}, Message: {close_msg}'
-                ))
+        
+        if self.consecutive_429_errors > 0:
+            self.stdout.write(self.style.WARNING(
+                f'⚠️  Rate Limit Context: {self.consecutive_429_errors} consecutive 429 errors'
+            ))
+        
+        self.stdout.write(self.style.WARNING('='*70 + '\n'))
         
         # Reset connection state
         self.connection_established = False
