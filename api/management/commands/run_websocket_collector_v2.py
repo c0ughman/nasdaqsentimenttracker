@@ -69,6 +69,10 @@ class Command(BaseCommand):
         self.last_second_timestamp = None
         self.last_processed_second = None  # Track which second we last processed
         
+        # Rate limiting backoff
+        self.consecutive_429_errors = 0
+        self.last_429_error_time = None
+        
     def add_arguments(self, parser):
         parser.add_argument(
             '--symbol',
@@ -167,14 +171,32 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS('✅ Market Open - Connecting...'))
                 try:
                     self.connect_and_run()
+                    # Successful connection - reset rate limit counter
+                    if self.consecutive_429_errors > 0:
+                        self.stdout.write(self.style.SUCCESS(
+                            f'✅ Connection successful after {self.consecutive_429_errors} rate limit errors. Counter reset.'
+                        ))
+                        self.consecutive_429_errors = 0
+                        self.last_429_error_time = None
                 except KeyboardInterrupt:
                     self.running = False
                     break
                 except Exception as e:
                     self.stdout.write(self.style.ERROR(f'❌ Error: {e}'))
                     if self.running:
-                        self.stdout.write('🔄 Reconnecting in 5 seconds...')
-                        time.sleep(5)
+                        # Implement exponential backoff for rate limiting
+                        if self.consecutive_429_errors > 0:
+                            # Exponential backoff: 2^errors seconds, capped at 300 seconds (5 minutes)
+                            backoff_seconds = min(2 ** min(self.consecutive_429_errors, 8), 300)
+                            self.stdout.write(self.style.WARNING(
+                                f'⏳ Rate limit backoff: Waiting {backoff_seconds} seconds before retry '
+                                f'(consecutive 429 errors: {self.consecutive_429_errors})'
+                            ))
+                            time.sleep(backoff_seconds)
+                        else:
+                            # Normal error - wait 5 seconds
+                            self.stdout.write('🔄 Reconnecting in 5 seconds...')
+                            time.sleep(5)
         finally:
             self.cleanup()
     
@@ -256,6 +278,14 @@ class Command(BaseCommand):
     def on_open(self, ws):
         """Called when WebSocket connection established"""
         self.stdout.write(self.style.SUCCESS('✅ WebSocket connected!'))
+        
+        # Reset rate limit counter on successful connection
+        if self.consecutive_429_errors > 0:
+            self.stdout.write(self.style.SUCCESS(
+                f'✅ Connection successful. Resetting rate limit counter (was: {self.consecutive_429_errors})'
+            ))
+            self.consecutive_429_errors = 0
+            self.last_429_error_time = None
         
         # Subscribe
         subscribe_message = {
@@ -764,7 +794,16 @@ class Command(BaseCommand):
     
     def on_error(self, ws, error):
         """Handle WebSocket errors"""
+        error_str = str(error)
         self.stdout.write(self.style.ERROR(f'❌ WebSocket error: {error}'))
+        
+        # Detect 429 rate limiting errors
+        if '429' in error_str or 'Too Many Requests' in error_str:
+            self.consecutive_429_errors += 1
+            self.last_429_error_time = time.time()
+            self.stdout.write(self.style.WARNING(
+                f'⚠️  Rate limit detected (429). Consecutive errors: {self.consecutive_429_errors}'
+            ))
     
     def on_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close"""
