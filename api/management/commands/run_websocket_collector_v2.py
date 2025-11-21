@@ -1,9 +1,18 @@
 """
-EODHD WebSocket Data Collector V2 - With Second-by-Second Aggregation
+EODHD WebSocket Data Collector V2 - With Second-by-Second Aggregation (PRODUCTION-READY)
+
 Collects real-time ticks and creates:
-  - 1-second OHLCV candles (SecondSnapshot)
+  - 1-second OHLCV candles (SecondSnapshot) with real-time sentiment
   - 100-tick OHLCV candles (TickCandle100)
-  
+
+RELIABILITY FEATURES:
+  - Ticks kept in-memory only (no database writes for performance)
+  - Async sentiment calculation (non-blocking)
+  - Robust error handling with exponential backoff retry
+  - Connection health monitoring with auto-reconnect
+  - Thread-safe buffer management
+  - Graceful degradation on errors
+
 Market hours: Connects at 9:30 AM EST, disconnects at 4:00 PM EST
 
 Run with: python manage.py run_websocket_collector_v2
@@ -20,7 +29,7 @@ from collections import deque
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 import pytz
-from api.models import Ticker, OHLCVTick, SecondSnapshot, TickCandle100
+from api.models import Ticker, SecondSnapshot, TickCandle100
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -54,12 +63,18 @@ class Command(BaseCommand):
         
         # Thread safety
         self.lock = threading.Lock()
-        
-        # Tick buffers
-        self.tick_buffer_1sec = {}  # Dict keyed by second timestamp (int) -> list of ticks
-        self.tick_buffer_100tick = deque(maxlen=100)  # For 100-tick candles
+
+        # Tick buffers (in-memory only - ticks NOT saved to database)
+        # Structure: {second_timestamp: [{'price': float, 'volume': int, 'timestamp': datetime}, ...]}
+        self.tick_buffer_1sec = {}  # Dict keyed by second timestamp (int) -> list of tick dicts
+        self.tick_buffer_100tick = deque(maxlen=100)  # For 100-tick candles (list of tick dicts)
         self.tick_counter_100 = 0
         self.candle_100_number = 0
+
+        # Sentiment calculation (async queue)
+        self.sentiment_queue = deque(maxlen=10)  # Queue of sentiment calculation results
+        self.sentiment_thread = None
+        self.sentiment_running = False
         
         # Statistics
         self.total_ticks = 0
@@ -79,6 +94,11 @@ class Command(BaseCommand):
         # Connection state tracking
         self.connection_established = False  # Track if we ever successfully connected
         self.last_connection_time = None
+        self.last_data_received_time = None  # Track when we last received data
+
+        # Health monitoring
+        self.last_heartbeat_time = None
+        self.heartbeat_thread = None
         
     def add_arguments(self, parser):
         parser.add_argument(
@@ -140,13 +160,14 @@ class Command(BaseCommand):
         # Display startup info
         self.stdout.write(self.style.SUCCESS(
             '\n' + '='*70 + '\n'
-            '🚀 EODHD WebSocket Collector V2 (Second-by-Second Aggregation)\n'
+            '🚀 EODHD WebSocket Collector V2 (PRODUCTION-READY)\n'
             '='*70
         ))
         self.stdout.write(f'📊 Ticker: QLD (NASDAQ-100 2x Leveraged ETF)')
         self.stdout.write(f'📡 Symbol: {self.symbol}')
         self.stdout.write(f'⏰ Market Hours: 9:30 AM - 4:00 PM EST')
-        self.stdout.write(f'💾 Saves: 1-second candles + 100-tick candles')
+        self.stdout.write(f'💾 Output: SecondSnapshot + TickCandle100 (ticks in-memory only)')
+        self.stdout.write(f'💚 Features: Async sentiment, health monitoring, auto-reconnect')
         self.stdout.write('⌨️  Press Ctrl+C to stop\n')
         
         # Market hours loop
@@ -324,6 +345,17 @@ class Command(BaseCommand):
         self.aggregation_thread.start()
         self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started'))
 
+        # Start async sentiment calculation thread
+        self.sentiment_running = True
+        self.sentiment_thread = threading.Thread(target=self.sentiment_calculation_loop, daemon=True)
+        self.sentiment_thread.start()
+        self.stdout.write(self.style.SUCCESS('💚 Async sentiment calculator started'))
+
+        # Start connection health monitoring thread
+        self.heartbeat_thread = threading.Thread(target=self.health_monitor_loop, daemon=True)
+        self.heartbeat_thread.start()
+        self.stdout.write(self.style.SUCCESS('💓 Connection health monitor started'))
+
         # DISABLED: Finnhub news loop (temporarily disabled for second-by-second processing)
         # News fetching will only happen at 1-minute intervals via run_nasdaq_sentiment.py
         # self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
@@ -331,18 +363,115 @@ class Command(BaseCommand):
         # self.stdout.write(self.style.SUCCESS('📰 News fetch loop started\n'))
         self.stdout.write(self.style.NOTICE('📰 Finnhub news loop DISABLED (only active at 1-minute intervals)\n'))
     
+    def sentiment_calculation_loop(self):
+        """
+        Async sentiment calculation loop - runs every second.
+        Calculates sentiment in background without blocking aggregation loop.
+        """
+        self.stdout.write(self.style.SUCCESS('💚 Sentiment calculation loop started'))
+
+        while self.sentiment_running and self.running:
+            try:
+                # Calculate sentiment every second
+                from api.management.commands.sentiment_realtime_v2 import update_realtime_sentiment
+
+                # Get last 60 seconds of snapshots for micro momentum
+                recent_snapshots = list(SecondSnapshot.objects.filter(
+                    ticker=self.ticker
+                ).order_by('-timestamp')[:60])
+
+                # Force macro recalc every minute (when second = 0)
+                current_time = timezone.now()
+                force_macro = (current_time.second == 0)
+
+                # Calculate sentiment components
+                sentiment_result = update_realtime_sentiment(
+                    recent_snapshots,
+                    ticker_symbol=self.symbol,
+                    force_macro_recalc=force_macro
+                )
+
+                # Store in queue for aggregation loop to pick up
+                with self.lock:
+                    self.sentiment_queue.append({
+                        'composite': sentiment_result.get('composite'),
+                        'news': sentiment_result.get('news'),
+                        'technical': sentiment_result.get('technical')
+                    })
+
+                # Log every 10 seconds
+                if self.verbose or current_time.second % 10 == 0:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'💚 Sentiment: Composite={sentiment_result.get("composite", 0):+.1f} '
+                        f'[News={sentiment_result.get("news", 0):+.1f}, '
+                        f'Tech={sentiment_result.get("technical", 0):+.1f}]'
+                    ))
+
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Sentiment calculation error: {e}'
+                ))
+                if self.verbose:
+                    import traceback
+                    self.stdout.write(traceback.format_exc())
+
+            # Sleep 1 second
+            time.sleep(1)
+
+        self.stdout.write(self.style.WARNING('💚 Sentiment calculation loop stopped'))
+
+    def health_monitor_loop(self):
+        """
+        Monitor WebSocket connection health.
+        Check for stale connections and trigger reconnect if needed.
+        """
+        self.stdout.write(self.style.SUCCESS('💓 Health monitor loop started'))
+
+        while self.running:
+            try:
+                current_time = time.time()
+
+                # Check if we're connected and receiving data
+                if self.connection_established and self.last_data_received_time:
+                    time_since_last_data = current_time - self.last_data_received_time
+
+                    # If no data received in 120 seconds, connection might be stale
+                    if time_since_last_data > 120:
+                        self.stdout.write(self.style.ERROR(
+                            f'❌ STALE CONNECTION DETECTED: No data received for {time_since_last_data:.0f}s. '
+                            f'Closing connection to trigger reconnect...'
+                        ))
+                        if self.ws:
+                            self.ws.close()
+
+                    # Log health status every 60 seconds
+                    elif int(current_time) % 60 == 0:
+                        self.stdout.write(self.style.SUCCESS(
+                            f'💓 Health: Connection active, last data {time_since_last_data:.0f}s ago, '
+                            f'{self.total_ticks} ticks, {self.total_1sec_candles} candles, '
+                            f'buffer: {len(self.tick_buffer_1sec)} seconds'
+                        ))
+
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f'⚠️  Health monitor error: {e}'))
+
+            # Check every 10 seconds
+            time.sleep(10)
+
+        self.stdout.write(self.style.WARNING('💓 Health monitor loop stopped'))
+
     def news_loop(self):
         """Run periodically to fetch news (non-blocking)"""
         self.stdout.write(self.style.SUCCESS('📰 News loop started'))
-        
+
         while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
             try:
                 from api.management.commands.finnhub_realtime_v2 import query_finnhub_for_news
-                
+
                 # This function manages its own rate limiting (50s on, 10s off)
                 # and puts articles into a queue for processing
                 finnhub_result = query_finnhub_for_news()
-                
+
                 if finnhub_result.get('queued_for_scoring', 0) > 0:
                     self.stdout.write(self.style.SUCCESS(
                         f'📰 Queued {finnhub_result["queued_for_scoring"]} {finnhub_result["symbol"]} articles for scoring'
@@ -350,11 +479,11 @@ class Command(BaseCommand):
                 elif finnhub_result.get('error'):
                     if self.verbose:
                         self.stdout.write(self.style.WARNING(f'Finnhub query error: {finnhub_result.get("error")}'))
-                        
+
             except Exception as e:
                 if self.verbose:
                     self.stdout.write(self.style.ERROR(f'❌ News loop error: {e}'))
-            
+
             # Sleep 1 second
             time.sleep(1)
 
@@ -557,15 +686,16 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f'⚠️  No timestamp field in data, using system time: {dt.strftime("%H:%M:%S.%f")}'
                     ))
-            
-            # Save raw tick
-            tick = OHLCVTick.objects.create(
-                ticker=self.ticker,
-                timestamp=dt,
-                price=price,
-                volume=volume,
-                source='eodhd_ws'
-            )
+
+            # Update last data received time (for health monitoring)
+            self.last_data_received_time = time.time()
+
+            # Create in-memory tick object (NOT saved to database for performance)
+            tick = {
+                'price': float(price),
+                'volume': int(volume),
+                'timestamp': dt
+            }
             
             # Add to buffers
             # Group ticks by their exact second (rounded down)
@@ -622,11 +752,11 @@ class Command(BaseCommand):
                 self.create_100tick_candle()
                 self.tick_counter_100 = 0
             
-            # Log progress
-            if self.verbose or self.total_ticks % 10 == 0:
+            # Log progress (less frequently to reduce noise)
+            if self.verbose or self.total_ticks % 50 == 0:
                 self.stdout.write(
-                    f'💾 Tick #{self.total_ticks:>6}: {dt.strftime("%H:%M:%S")} | '
-                    f'${price:>8.2f} | Vol: {volume:>8,}'
+                    f'📊 Tick #{self.total_ticks:>6}: {dt.strftime("%H:%M:%S")} | '
+                    f'${price:>8.2f} | Vol: {volume:>8,} | Buffer: {len(self.tick_buffer_1sec)} seconds'
                 )
         
         except json.JSONDecodeError:
@@ -697,142 +827,137 @@ class Command(BaseCommand):
                     f'⚠️  SecondSnapshot SKIPPED: No ticks for second {timestamp.strftime("%H:%M:%S")} (ts={second_timestamp})'
                 ))
                 return
-            
-            # Calculate OHLCV from ticks
-            open_price = float(ticks[0].price)
-            high_price = max(float(t.price) for t in ticks)
-            low_price = min(float(t.price) for t in ticks)
-            close_price = float(ticks[-1].price)
-            total_volume = sum(t.volume for t in ticks)
+
+            # Calculate OHLCV from tick dicts (not ORM objects)
+            open_price = float(ticks[0]['price'])
+            high_price = max(float(t['price']) for t in ticks)
+            low_price = min(float(t['price']) for t in ticks)
+            close_price = float(ticks[-1]['price'])
+            total_volume = sum(int(t['volume']) for t in ticks)
             tick_count = len(ticks)
             
             # ============================================================
-            # REAL-TIME SENTIMENT SCORING V2 (calculate BEFORE creating snapshot)
+            # REAL-TIME SENTIMENT SCORING V2 (ASYNC - Non-blocking)
             # ============================================================
+            # Check if we have a pre-calculated sentiment from async thread
             sentiment_scores = {
                 'composite': None,
                 'news': None,
                 'technical': None
             }
-            
+
+            # Try to get latest sentiment from queue (non-blocking)
             try:
-                from api.management.commands.sentiment_realtime_v2 import update_realtime_sentiment
-                
-                # NOTE: News fetching (query_finnhub_for_news) is now handled in a separate thread (news_loop)
-                # It populates a queue that update_realtime_sentiment pulls from automatically.
-                # We no longer call query_finnhub_for_news() here to avoid blocking the aggregation loop.
-                
-                # Get last 60 seconds of snapshots for micro momentum
-                # OPTIMIZATION: Limit query to fields we need
-                recent_snapshots = list(SecondSnapshot.objects.filter(
-                    ticker=self.ticker
-                ).order_by('-timestamp')[:60])
-                
-                # Force macro recalc every minute (when second = 0)
-                force_macro = (timestamp.second == 0)
-                
-                # Calculate sentiment components
-                sentiment_result = update_realtime_sentiment(
-                    recent_snapshots,
-                    ticker_symbol=self.symbol,
-                    force_macro_recalc=force_macro
-                )
-                
-                # Store scores for snapshot creation
-                sentiment_scores['composite'] = sentiment_result['composite']
-                sentiment_scores['news'] = sentiment_result['news']
-                sentiment_scores['technical'] = sentiment_result['technical']
-                
-                # Log sentiment every 10 candles
-                if self.verbose or self.total_1sec_candles % 10 == 0:
-                    self.stdout.write(self.style.SUCCESS(
-                        f'💚 Sentiment #{self.total_1sec_candles}: '
-                        f'Composite={sentiment_result["composite"]:+.1f} '
-                        f'[News={sentiment_result["news"]:+.1f}, '
-                        f'Tech={sentiment_result["technical"]:+.1f}, '
-                        f'Micro={sentiment_result["micro_momentum"]:+.1f}] '
-                        f'(source: {sentiment_result["source"]})'
-                    ))
-            
-            except Exception as sentiment_error:
-                # Don't fail the whole candle if sentiment calculation fails
-                # Snapshot will be created with NULL sentiment scores
+                with self.lock:
+                    if self.sentiment_queue:
+                        # Get most recent sentiment result
+                        sentiment_scores = self.sentiment_queue[-1]
+                        if self.verbose and self.total_1sec_candles % 10 == 0:
+                            self.stdout.write(self.style.SUCCESS(
+                                f'💚 Using cached sentiment: '
+                                f'Composite={sentiment_scores.get("composite", 0):+.1f}'
+                            ))
+            except Exception as e:
                 self.stdout.write(self.style.WARNING(
-                    f'⚠️  Sentiment calculation failed: {sentiment_error}'
+                    f'⚠️  Could not retrieve sentiment from queue: {e}'
                 ))
-                if self.verbose:
-                    import traceback
-                    self.stdout.write(traceback.format_exc())
-            
+
             # ============================================================
             
             # Save to SecondSnapshot with exact second boundary timestamp
             # Sentiment scores are included if calculated successfully, otherwise NULL
-            try:
-                snapshot = SecondSnapshot.objects.create(
-                    ticker=self.ticker,
-                    timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
-                    ohlc_1sec_open=open_price,
-                    ohlc_1sec_high=high_price,
-                    ohlc_1sec_low=low_price,
-                    ohlc_1sec_close=close_price,
-                    ohlc_1sec_volume=total_volume,
-                    ohlc_1sec_tick_count=tick_count,
-                    composite_score=sentiment_scores['composite'],
-                    news_score_cached=sentiment_scores['news'],
-                    technical_score_cached=sentiment_scores['technical'],
-                    source='eodhd_ws'
-                )
-                
-                self.total_1sec_candles += 1
-                self.last_second_timestamp = timestamp
-                
-                # Mark this second as processed to prevent duplicates
-                with self.lock:
-                    self.processed_seconds.add(second_timestamp)
-                
-                # ALWAYS LOG successful creation
-                self.stdout.write(self.style.SUCCESS(
-                    f'✅ SecondSnapshot CREATED #{self.total_1sec_candles}: '
-                    f'{timestamp.strftime("%H:%M:%S")} | '
-                    f'O:{open_price:.2f} H:{high_price:.2f} L:{low_price:.2f} C:{close_price:.2f} | '
-                    f'{tick_count} ticks'
-                ))
-                
-            except Exception as create_error:
-                self.stdout.write(self.style.ERROR(
-                    f'❌ SecondSnapshot CREATION FAILED: {create_error}\n'
-                    f'   Timestamp: {timestamp}\n'
-                    f'   Data: O={open_price}, H={high_price}, L={low_price}, C={close_price}, V={total_volume}'
-                ))
-                import traceback
-                self.stdout.write(self.style.ERROR(traceback.format_exc()))
-                # Re-raise to be caught by outer loop if needed, or just continue
-                raise create_error
-        
+            # ROBUST ERROR HANDLING: Retry up to 3 times with exponential backoff
+            max_retries = 3
+            retry_delay = 0.1  # Start with 100ms
+
+            for attempt in range(max_retries):
+                try:
+                    snapshot = SecondSnapshot.objects.create(
+                        ticker=self.ticker,
+                        timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
+                        ohlc_1sec_open=open_price,
+                        ohlc_1sec_high=high_price,
+                        ohlc_1sec_low=low_price,
+                        ohlc_1sec_close=close_price,
+                        ohlc_1sec_volume=total_volume,
+                        ohlc_1sec_tick_count=tick_count,
+                        composite_score=sentiment_scores.get('composite'),
+                        news_score_cached=sentiment_scores.get('news'),
+                        technical_score_cached=sentiment_scores.get('technical'),
+                        source='eodhd_ws'
+                    )
+
+                    self.total_1sec_candles += 1
+                    self.last_second_timestamp = timestamp
+
+                    # Mark this second as processed to prevent duplicates
+                    with self.lock:
+                        self.processed_seconds.add(second_timestamp)
+
+                    # ALWAYS LOG successful creation
+                    self.stdout.write(self.style.SUCCESS(
+                        f'✅ SecondSnapshot #{self.total_1sec_candles}: '
+                        f'{timestamp.strftime("%H:%M:%S")} | '
+                        f'O:{open_price:.2f} H:{high_price:.2f} L:{low_price:.2f} C:{close_price:.2f} | '
+                        f'{tick_count} ticks'
+                    ))
+
+                    # Success! Break out of retry loop
+                    break
+
+                except Exception as create_error:
+                    if attempt < max_retries - 1:
+                        # Not the last attempt - retry with backoff
+                        self.stdout.write(self.style.WARNING(
+                            f'⚠️  SecondSnapshot creation failed (attempt {attempt + 1}/{max_retries}): {create_error}. '
+                            f'Retrying in {retry_delay:.2f}s...'
+                        ))
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        # Last attempt failed - log error but DON'T crash the thread
+                        self.stdout.write(self.style.ERROR(
+                            f'❌ SecondSnapshot CREATION FAILED after {max_retries} attempts:\n'
+                            f'   Timestamp: {timestamp}\n'
+                            f'   Error: {create_error}\n'
+                            f'   Data: O={open_price}, H={high_price}, L={low_price}, C={close_price}, V={total_volume}'
+                        ))
+                        import traceback
+                        self.stdout.write(self.style.ERROR(traceback.format_exc()))
+                        # Mark as processed anyway to avoid infinite retries
+                        with self.lock:
+                            self.processed_seconds.add(second_timestamp)
+
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'❌ SecondSnapshot PROCESS ERROR: {e}'))
+            # Catch-all for any unexpected errors - log but DON'T crash
+            self.stdout.write(self.style.ERROR(
+                f'❌ SecondSnapshot PROCESS ERROR: {e}\n'
+                f'   Second: {second_timestamp}'
+            ))
             import traceback
             self.stdout.write(self.style.ERROR(traceback.format_exc()))
+            # Mark as processed to avoid getting stuck
+            with self.lock:
+                self.processed_seconds.add(second_timestamp)
     
     def create_100tick_candle(self):
-        """Create 100-tick candle from buffer"""
+        """Create 100-tick candle from buffer (using in-memory tick dicts)"""
         if len(self.tick_buffer_100tick) < 100:
             return
-        
+
         try:
             # Get last 100 ticks
             ticks = list(self.tick_buffer_100tick)[-100:]
-            
-            # Calculate OHLCV
-            open_price = float(ticks[0].price)
-            high_price = max(float(t.price) for t in ticks)
-            low_price = min(float(t.price) for t in ticks)
-            close_price = float(ticks[-1].price)
-            total_volume = sum(t.volume for t in ticks)
-            
-            first_tick_time = ticks[0].timestamp
-            last_tick_time = ticks[-1].timestamp
+
+            # Calculate OHLCV from tick dicts
+            open_price = float(ticks[0]['price'])
+            high_price = max(float(t['price']) for t in ticks)
+            low_price = min(float(t['price']) for t in ticks)
+            close_price = float(ticks[-1]['price'])
+            total_volume = sum(int(t['volume']) for t in ticks)
+
+            first_tick_time = ticks[0]['timestamp']
+            last_tick_time = ticks[-1]['timestamp']
             duration = (last_tick_time - first_tick_time).total_seconds()
             
             # Increment candle number
@@ -970,15 +1095,24 @@ class Command(BaseCommand):
     
     def cleanup(self):
         """Cleanup and display statistics"""
+        self.stdout.write(self.style.WARNING('\n🧹 Starting cleanup...'))
+
+        # Stop sentiment calculation thread
+        self.sentiment_running = False
+        if self.sentiment_thread and self.sentiment_thread.is_alive():
+            self.stdout.write(self.style.NOTICE('⏳ Waiting for sentiment thread to stop...'))
+            self.sentiment_thread.join(timeout=5.0)
+
         # Process any remaining ticks for all seconds in buffer
         # LOCK ACQUIRE for key listing
         with self.lock:
             keys = sorted(self.tick_buffer_1sec.keys())
-            
+
         if keys:
+            self.stdout.write(self.style.NOTICE(f'⏳ Processing {len(keys)} remaining seconds in buffer...'))
             for second_timestamp in keys:
                 self.aggregate_and_save_1sec_candle(second_timestamp)
-        
+
         if self.ws:
             self.ws.close()
         
