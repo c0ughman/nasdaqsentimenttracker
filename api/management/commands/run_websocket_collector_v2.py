@@ -323,37 +323,64 @@ class Command(BaseCommand):
             if sleep_time > 0:
                 time.sleep(sleep_time)
             
-            # Process the previous second's ticks
-            current_second = int(time.time())
-            previous_second = current_second - 1
+            # Process the buffer based on available data, not just wall clock
+            # This handles cases where data is delayed or backfilling
+            
+            # LOCK ACQUIRE for reading keys
+            with self.lock:
+                buffer_keys = sorted(list(self.tick_buffer_1sec.keys()))
+            
+            if not buffer_keys:
+                # Buffer empty, nothing to process
+                # But we should still advance next_second for the loop sleep
+                next_second = current_second + 1
+                continue
+                
+            # Determine what to process
+            # We consider a second "ready" if:
+            # 1. We have data for a later second (implies this second is complete)
+            # 2. OR the second is significantly in the past relative to wall clock (latency/timeout)
+            
+            max_key = buffer_keys[-1]
+            ready_keys = []
+            
+            # Strategy: Process all keys that are smaller than the max key
+            # This assumes that receiving a tick for second T+N implies second T is done.
+            ready_keys = [k for k in buffer_keys if k < max_key]
+            
+            # Also check the max_key itself against wall clock
+            # If max_key is older than 5 seconds ago, assume no more ticks coming for it
+            if max_key < (current_second - 5):
+                ready_keys.append(max_key)
             
             # DIAGNOSTIC: Log aggregation timing
             if loop_count <= 5 or loop_count % 10 == 0:
                 current_dt = datetime.fromtimestamp(current_second, tz=pytz.UTC)
-                previous_dt = datetime.fromtimestamp(previous_second, tz=pytz.UTC)
-                
-                # LOCK ACQUIRE for reading keys
-                with self.lock:
-                    buffer_seconds = sorted(list(self.tick_buffer_1sec.keys()))
-                    prev_in_buffer = previous_second in self.tick_buffer_1sec
-                    prev_tick_count = len(self.tick_buffer_1sec.get(previous_second, []))
                 
                 self.stdout.write(self.style.WARNING(
                     f'⏱️  AGGREGATION TIMING:\n'
                     f'   System time: {current_dt.strftime("%H:%M:%S")} (ts={current_second})\n'
-                    f'   Processing: {previous_dt.strftime("%H:%M:%S")} (ts={previous_second})\n'
-                    f'   Buffer has {len(buffer_seconds)} seconds: {buffer_seconds[-10:] if len(buffer_seconds) > 10 else buffer_seconds}\n'
-                    f'   Previous second in buffer? {prev_in_buffer}\n'
-                    f'   Tick count for previous second: {prev_tick_count}'
+                    f'   Buffer has {len(buffer_keys)} seconds: {buffer_keys[-10:] if len(buffer_keys) > 10 else buffer_keys}\n'
+                    f'   Ready to process: {len(ready_keys)} seconds\n'
                 ))
             
-            # Only process if we haven't already processed this second
-            if self.last_processed_second is None or previous_second > self.last_processed_second:
-                self.aggregate_and_save_1sec_candle(previous_second)
-                self.last_processed_second = previous_second
-            
+            # Process all ready keys
+            for sec_to_process in ready_keys:
+                # Only process if we haven't already processed this second (or a later one, assuming strictly ordered processing)
+                # Actually, since we delete from buffer, presence in buffer means we haven't processed it yet.
+                # But let's keep the check for safety.
+                if self.last_processed_second is None or sec_to_process > self.last_processed_second:
+                    self.aggregate_and_save_1sec_candle(sec_to_process)
+                    self.last_processed_second = sec_to_process
+                else:
+                    # Key is in buffer but <= last_processed_second? Should not happen if we delete properly.
+                    # Just in case, remove it.
+                     with self.lock:
+                        if sec_to_process in self.tick_buffer_1sec:
+                            del self.tick_buffer_1sec[sec_to_process]
+
             # Update next second boundary
-            next_second = current_second + 1
+            next_second = int(time.time()) + 1
     
     def on_message(self, ws, message):
         """Process incoming tick data"""
@@ -503,10 +530,10 @@ class Command(BaseCommand):
         Args:
             second_timestamp: Unix timestamp (integer) for the second to process
         """
-        # Get ticks for this specific second
-        # LOCK ACQUIRE for reading/copying
+        # Get ticks for this specific second and remove from buffer
+        # LOCK ACQUIRE for popping
         with self.lock:
-            ticks = self.tick_buffer_1sec.get(second_timestamp, [])[:]
+            ticks = self.tick_buffer_1sec.pop(second_timestamp, [])
         
         # Create timestamp from the second boundary (not from tick timestamps)
         timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
@@ -526,12 +553,6 @@ class Command(BaseCommand):
         if existing:
             # Already created, skip
             return
-        
-        # DEBUG: Log buffer state
-        if self.verbose:
-            with self.lock:
-                buffer_keys = list(self.tick_buffer_1sec.keys())
-            self.stdout.write(f'🔍 Checking second {second_timestamp}, buffer has keys: {buffer_keys}, ticks count: {len(ticks)}')
         
         try:
             if not ticks:
@@ -639,19 +660,6 @@ class Command(BaseCommand):
                     f'O:{open_price:.2f} H:{high_price:.2f} L:{low_price:.2f} C:{close_price:.2f} | '
                     f'{tick_count} ticks'
                 ))
-            
-            # Remove processed ticks from buffer (cleanup old seconds)
-            # LOCK ACQUIRE for deletion
-            with self.lock:
-                if second_timestamp in self.tick_buffer_1sec:
-                    del self.tick_buffer_1sec[second_timestamp]
-                
-                # Cleanup old seconds (keep only last 5 seconds in buffer)
-                current_second = int(time.time())
-                seconds_to_keep = [current_second - i for i in range(5)]
-                keys_to_remove = [k for k in self.tick_buffer_1sec.keys() if k not in seconds_to_keep]
-                for k in keys_to_remove:
-                    del self.tick_buffer_1sec[k]
         
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'❌ Error creating 1-sec candle: {e}'))
