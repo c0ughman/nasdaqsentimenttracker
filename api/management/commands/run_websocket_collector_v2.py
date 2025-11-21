@@ -555,9 +555,9 @@ class Command(BaseCommand):
              return
         
         # DIAGNOSTIC: Always log what we're trying to process
-        if self.verbose or self.total_1sec_candles % 10 == 0:
+        if True: # Always log for now to debug
              self.stdout.write(self.style.NOTICE(
-                f'🔧 AGGREGATE: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
+                f'🔧 SecondSnapshot ATTEMPT: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
                 f'Found {len(ticks)} ticks in buffer'
             ))
         
@@ -570,8 +570,7 @@ class Command(BaseCommand):
         
         if existing:
             # Already created, skip
-            if self.verbose:
-                self.stdout.write(self.style.WARNING(f'⚠️  Snapshot for {timestamp.strftime("%H:%M:%S")} already exists, skipping'))
+            self.stdout.write(self.style.WARNING(f'⚠️  SecondSnapshot SKIPPED: {timestamp.strftime("%H:%M:%S")} already exists'))
             return
         
         try:
@@ -579,10 +578,9 @@ class Command(BaseCommand):
                 # No ticks for this second - we still want to create a candle if it's during market hours
                 # using the CLOSE of the previous candle (forward fill)
                 # BUT for now, let's just return to match previous logic.
-                if self.verbose:
-                    self.stdout.write(self.style.WARNING(
-                        f'⚠️  No ticks for second {timestamp.strftime("%H:%M:%S")} (ts={second_timestamp}), skipping'
-                    ))
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  SecondSnapshot SKIPPED: No ticks for second {timestamp.strftime("%H:%M:%S")} (ts={second_timestamp})'
+                ))
                 return
             
             # Calculate OHLCV from ticks
@@ -655,34 +653,48 @@ class Command(BaseCommand):
             
             # Save to SecondSnapshot with exact second boundary timestamp
             # Sentiment scores are included if calculated successfully, otherwise NULL
-            snapshot = SecondSnapshot.objects.create(
-                ticker=self.ticker,
-                timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
-                ohlc_1sec_open=open_price,
-                ohlc_1sec_high=high_price,
-                ohlc_1sec_low=low_price,
-                ohlc_1sec_close=close_price,
-                ohlc_1sec_volume=total_volume,
-                ohlc_1sec_tick_count=tick_count,
-                composite_score=sentiment_scores['composite'],
-                news_score_cached=sentiment_scores['news'],
-                technical_score_cached=sentiment_scores['technical'],
-                source='eodhd_ws'
-            )
-            
-            self.total_1sec_candles += 1
-            self.last_second_timestamp = timestamp
-            
-            if self.verbose or self.total_1sec_candles % 10 == 0:
+            try:
+                snapshot = SecondSnapshot.objects.create(
+                    ticker=self.ticker,
+                    timestamp=timestamp,  # Exact second boundary (e.g., 10:30:00.000)
+                    ohlc_1sec_open=open_price,
+                    ohlc_1sec_high=high_price,
+                    ohlc_1sec_low=low_price,
+                    ohlc_1sec_close=close_price,
+                    ohlc_1sec_volume=total_volume,
+                    ohlc_1sec_tick_count=tick_count,
+                    composite_score=sentiment_scores['composite'],
+                    news_score_cached=sentiment_scores['news'],
+                    technical_score_cached=sentiment_scores['technical'],
+                    source='eodhd_ws'
+                )
+                
+                self.total_1sec_candles += 1
+                self.last_second_timestamp = timestamp
+                
+                # ALWAYS LOG successful creation
                 self.stdout.write(self.style.SUCCESS(
-                    f'📊 1-sec candle #{self.total_1sec_candles}: '
+                    f'✅ SecondSnapshot CREATED #{self.total_1sec_candles}: '
                     f'{timestamp.strftime("%H:%M:%S")} | '
                     f'O:{open_price:.2f} H:{high_price:.2f} L:{low_price:.2f} C:{close_price:.2f} | '
                     f'{tick_count} ticks'
                 ))
+                
+            except Exception as create_error:
+                self.stdout.write(self.style.ERROR(
+                    f'❌ SecondSnapshot CREATION FAILED: {create_error}\n'
+                    f'   Timestamp: {timestamp}\n'
+                    f'   Data: O={open_price}, H={high_price}, L={low_price}, C={close_price}, V={total_volume}'
+                ))
+                import traceback
+                self.stdout.write(self.style.ERROR(traceback.format_exc()))
+                # Re-raise to be caught by outer loop if needed, or just continue
+                raise create_error
         
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'❌ Error creating 1-sec candle: {e}'))
+            self.stdout.write(self.style.ERROR(f'❌ SecondSnapshot PROCESS ERROR: {e}'))
+            import traceback
+            self.stdout.write(self.style.ERROR(traceback.format_exc()))
     
     def create_100tick_candle(self):
         """Create 100-tick candle from buffer"""
