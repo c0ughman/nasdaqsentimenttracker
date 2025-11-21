@@ -321,10 +321,12 @@ class Command(BaseCommand):
         self.aggregation_thread.start()
         self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started'))
 
-        # Start news fetch timer
-        self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
-        self.news_thread.start()
-        self.stdout.write(self.style.SUCCESS('📰 News fetch loop started\n'))
+        # DISABLED: Finnhub news loop (temporarily disabled for second-by-second processing)
+        # News fetching will only happen at 1-minute intervals via run_nasdaq_sentiment.py
+        # self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
+        # self.news_thread.start()
+        # self.stdout.write(self.style.SUCCESS('📰 News fetch loop started\n'))
+        self.stdout.write(self.style.NOTICE('📰 Finnhub news loop DISABLED (only active at 1-minute intervals)\n'))
     
     def news_loop(self):
         """Run periodically to fetch news (non-blocking)"""
