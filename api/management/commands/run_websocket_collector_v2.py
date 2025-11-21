@@ -342,16 +342,23 @@ class Command(BaseCommand):
             # 2. OR the second is significantly in the past relative to wall clock (latency/timeout)
             
             max_key = buffer_keys[-1]
-            ready_keys = []
             
-            # Strategy: Process all keys that are smaller than the max key
-            # This assumes that receiving a tick for second T+N implies second T is done.
+            # Force processing if we have enough data buffered or time has passed
+            # Logic: 
+            # - Process anything strictly older than the newest data we have (max_key)
+            # - This assumes data arrives roughly in order
+            
             ready_keys = [k for k in buffer_keys if k < max_key]
             
             # Also check the max_key itself against wall clock
             # If max_key is older than 5 seconds ago, assume no more ticks coming for it
-            if max_key < (current_second - 5):
+            # NOTE: If skew is large (e.g. 10 mins), current_second is much larger than max_key
+            # So this condition will be TRUE for max_key too, which is good.
+            if max_key < (current_second - 2):  # Reduced from 5 to 2 for faster processing
                 ready_keys.append(max_key)
+                
+            # Remove duplicates and sort
+            ready_keys = sorted(list(set(ready_keys)))
             
             # DIAGNOSTIC: Log aggregation timing
             if loop_count <= 5 or loop_count % 10 == 0:
@@ -361,23 +368,28 @@ class Command(BaseCommand):
                     f'⏱️  AGGREGATION TIMING:\n'
                     f'   System time: {current_dt.strftime("%H:%M:%S")} (ts={current_second})\n'
                     f'   Buffer has {len(buffer_keys)} seconds: {buffer_keys[-10:] if len(buffer_keys) > 10 else buffer_keys}\n'
-                    f'   Ready to process: {len(ready_keys)} seconds\n'
+                    f'   Ready to process: {len(ready_keys)} seconds: {ready_keys}\n'
+                    f'   Max key in buffer: {max_key}\n'
+                    f'   Last processed: {self.last_processed_second}'
                 ))
             
             # Process all ready keys
+            processed_count = 0
             for sec_to_process in ready_keys:
-                # Only process if we haven't already processed this second (or a later one, assuming strictly ordered processing)
-                # Actually, since we delete from buffer, presence in buffer means we haven't processed it yet.
-                # But let's keep the check for safety.
+                # Only process if we haven't already processed this second
                 if self.last_processed_second is None or sec_to_process > self.last_processed_second:
                     self.aggregate_and_save_1sec_candle(sec_to_process)
                     self.last_processed_second = sec_to_process
-                else:
-                    # Key is in buffer but <= last_processed_second? Should not happen if we delete properly.
-                    # Just in case, remove it.
-                     with self.lock:
-                        if sec_to_process in self.tick_buffer_1sec:
-                            del self.tick_buffer_1sec[sec_to_process]
+                    processed_count += 1
+                
+                # Ensure key is removed from buffer even if we skipped processing
+                # (e.g. if we somehow processed it already but didn't clear it)
+                with self.lock:
+                    if sec_to_process in self.tick_buffer_1sec:
+                        del self.tick_buffer_1sec[sec_to_process]
+            
+            if processed_count > 0 and (loop_count % 10 == 0 or self.verbose):
+                self.stdout.write(self.style.SUCCESS(f'⚡ Processed {processed_count} seconds in this iteration'))
 
             # Update next second boundary
             next_second = int(time.time()) + 1
@@ -536,15 +548,21 @@ class Command(BaseCommand):
             ticks = self.tick_buffer_1sec.pop(second_timestamp, [])
         
         # Create timestamp from the second boundary (not from tick timestamps)
-        timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
+        try:
+            timestamp = datetime.fromtimestamp(second_timestamp, tz=pytz.UTC)
+        except Exception as e:
+             self.stdout.write(self.style.ERROR(f'❌ Error converting timestamp {second_timestamp}: {e}'))
+             return
         
         # DIAGNOSTIC: Always log what we're trying to process
-        self.stdout.write(self.style.NOTICE(
-            f'🔧 AGGREGATE: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
-            f'Found {len(ticks)} ticks in buffer'
-        ))
+        if self.verbose or self.total_1sec_candles % 10 == 0:
+             self.stdout.write(self.style.NOTICE(
+                f'🔧 AGGREGATE: Processing second {second_timestamp} ({timestamp.strftime("%H:%M:%S")}), '
+                f'Found {len(ticks)} ticks in buffer'
+            ))
         
         # Check if candle already exists for this second (avoid duplicates)
+        # NOTE: This check might be slow if DB is under load. Consider caching latest timestamp.
         existing = SecondSnapshot.objects.filter(
             ticker=self.ticker,
             timestamp=timestamp
@@ -552,12 +570,16 @@ class Command(BaseCommand):
         
         if existing:
             # Already created, skip
+            if self.verbose:
+                self.stdout.write(self.style.WARNING(f'⚠️  Snapshot for {timestamp.strftime("%H:%M:%S")} already exists, skipping'))
             return
         
         try:
             if not ticks:
-                # No ticks for this second - log warning and skip
-                if self.total_1sec_candles % 10 == 0:  # Log occasionally
+                # No ticks for this second - we still want to create a candle if it's during market hours
+                # using the CLOSE of the previous candle (forward fill)
+                # BUT for now, let's just return to match previous logic.
+                if self.verbose:
                     self.stdout.write(self.style.WARNING(
                         f'⚠️  No ticks for second {timestamp.strftime("%H:%M:%S")} (ts={second_timestamp}), skipping'
                     ))
@@ -588,6 +610,7 @@ class Command(BaseCommand):
                 # We no longer call query_finnhub_for_news() here to avoid blocking the aggregation loop.
                 
                 # Get last 60 seconds of snapshots for micro momentum
+                # OPTIMIZATION: Limit query to fields we need
                 recent_snapshots = list(SecondSnapshot.objects.filter(
                     ticker=self.ticker
                 ).order_by('-timestamp')[:60])
@@ -627,9 +650,6 @@ class Command(BaseCommand):
                 if self.verbose:
                     import traceback
                     self.stdout.write(traceback.format_exc())
-                    self.stdout.write(self.style.NOTICE(
-                        'Creating snapshot with price data only (no sentiment)'
-                    ))
             
             # ============================================================
             
