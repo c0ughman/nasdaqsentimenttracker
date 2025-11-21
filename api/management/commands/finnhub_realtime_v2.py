@@ -127,12 +127,12 @@ def mark_article_processed(article_url):
 # ARTICLE SCORING (matches run_nasdaq_sentiment.py exactly)
 # ============================================================================
 
-def score_article_with_openai(headline, summary, symbol):
+def score_article_with_ai(headline, summary, symbol):
     """
-    Score article using OpenAI API (same method as run_nasdaq_sentiment.py).
+    Score article using AI sentiment analysis (OpenAI or FinBERT based on config).
     
-    This replicates the exact scoring logic from run_nasdaq_sentiment.py
-    to ensure consistency.
+    This uses the same sentiment provider as run_nasdaq_sentiment.py for consistency.
+    Respects SENTIMENT_PROVIDER environment variable.
     
     Args:
         headline: Article headline
@@ -143,12 +143,13 @@ def score_article_with_openai(headline, summary, symbol):
         float: Article impact on news score (already scaled and weighted)
     """
     try:
-        # Import the sentiment analysis function from run_nasdaq_sentiment
-        from api.management.commands.run_nasdaq_sentiment import analyze_sentiment_finbert_batch
+        # Import the sentiment analysis wrapper from run_nasdaq_sentiment
+        # This automatically uses OpenAI or FinBERT based on SENTIMENT_PROVIDER env var
+        from api.management.commands.run_nasdaq_sentiment import analyze_sentiment_batch
         
         # Score the article
         text = f"{headline}. {summary}" if summary else headline
-        sentiments = analyze_sentiment_finbert_batch([text])
+        sentiments = analyze_sentiment_batch([text])
         
         if not sentiments or len(sentiments) == 0:
             logger.warning(f"No sentiment returned for {symbol} article")
@@ -204,7 +205,7 @@ def scoring_worker():
                 continue
             
             # Score the article
-            impact = score_article_with_openai(
+            impact = score_article_with_ai(
                 article_data['headline'],
                 article_data['summary'],
                 article_data['symbol']
