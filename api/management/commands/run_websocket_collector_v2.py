@@ -312,87 +312,102 @@ class Command(BaseCommand):
         next_second = int(now) + 1  # Next whole second
         
         loop_count = 0
-        while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
-            loop_count += 1
-            if loop_count % 10 == 0:  # Log every 10 seconds
-                self.stdout.write(f'🔄 Aggregation loop iteration #{loop_count}')
-            # Sleep until next second boundary
-            now = time.time()
-            sleep_time = next_second - now
-            
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            
-            # Process the buffer based on available data, not just wall clock
-            # This handles cases where data is delayed or backfilling
-            
-            # LOCK ACQUIRE for reading keys
-            with self.lock:
-                buffer_keys = sorted(list(self.tick_buffer_1sec.keys()))
-            
-            if not buffer_keys:
-                # Buffer empty, nothing to process
-                # But we should still advance next_second for the loop sleep
-                next_second = current_second + 1
-                continue
-                
-            # Determine what to process
-            # We consider a second "ready" if:
-            # 1. We have data for a later second (implies this second is complete)
-            # 2. OR the second is significantly in the past relative to wall clock (latency/timeout)
-            
-            max_key = buffer_keys[-1]
-            
-            # Force processing if we have enough data buffered or time has passed
-            # Logic: 
-            # - Process anything strictly older than the newest data we have (max_key)
-            # - This assumes data arrives roughly in order
-            
-            ready_keys = [k for k in buffer_keys if k < max_key]
-            
-            # Also check the max_key itself against wall clock
-            # If max_key is older than 5 seconds ago, assume no more ticks coming for it
-            # NOTE: If skew is large (e.g. 10 mins), current_second is much larger than max_key
-            # So this condition will be TRUE for max_key too, which is good.
-            if max_key < (current_second - 2):  # Reduced from 5 to 2 for faster processing
-                ready_keys.append(max_key)
-                
-            # Remove duplicates and sort
-            ready_keys = sorted(list(set(ready_keys)))
-            
-            # DIAGNOSTIC: Log aggregation timing
-            if loop_count <= 5 or loop_count % 10 == 0:
-                current_dt = datetime.fromtimestamp(current_second, tz=pytz.UTC)
-                
-                self.stdout.write(self.style.WARNING(
-                    f'⏱️  AGGREGATION TIMING:\n'
-                    f'   System time: {current_dt.strftime("%H:%M:%S")} (ts={current_second})\n'
-                    f'   Buffer has {len(buffer_keys)} seconds: {buffer_keys[-10:] if len(buffer_keys) > 10 else buffer_keys}\n'
-                    f'   Ready to process: {len(ready_keys)} seconds: {ready_keys}\n'
-                    f'   Max key in buffer: {max_key}\n'
-                    f'   Last processed: {self.last_processed_second}'
-                ))
-            
-            # Process all ready keys
-            processed_count = 0
-            for sec_to_process in ready_keys:
-                # Only process if we haven't already processed this second
-                if self.last_processed_second is None or sec_to_process > self.last_processed_second:
-                    self.aggregate_and_save_1sec_candle(sec_to_process)
-                    self.last_processed_second = sec_to_process
-                    processed_count += 1
-                
-                # Ensure key is removed from buffer even if we skipped processing
-                # (e.g. if we somehow processed it already but didn't clear it)
-                with self.lock:
-                    if sec_to_process in self.tick_buffer_1sec:
-                        del self.tick_buffer_1sec[sec_to_process]
-            
-            if processed_count > 0 and (loop_count % 10 == 0 or self.verbose):
-                self.stdout.write(self.style.SUCCESS(f'⚡ Processed {processed_count} seconds in this iteration'))
+        
+        try:
+            while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
+                try:
+                    loop_count += 1
+                    if loop_count % 10 == 0:  # Log every 10 seconds
+                        self.stdout.write(f'🔄 Aggregation loop iteration #{loop_count}')
+                        
+                    # Sleep until next second boundary
+                    now = time.time()
+                    sleep_time = next_second - now
+                    
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+                    
+                    # Process the buffer based on available data, not just wall clock
+                    # This handles cases where data is delayed or backfilling
+                    
+                    # LOCK ACQUIRE for reading keys
+                    with self.lock:
+                        buffer_keys = sorted(list(self.tick_buffer_1sec.keys()))
+                    
+                    if not buffer_keys:
+                        # Buffer empty, nothing to process
+                        # But we should still advance next_second for the loop sleep
+                        next_second = current_second + 1 if 'current_second' in locals() else int(time.time()) + 1
+                        continue
+                        
+                    # Determine what to process
+                    current_second = int(time.time())
+                    
+                    max_key = buffer_keys[-1]
+                    
+                    # Force processing if we have enough data buffered or time has passed
+                    # Logic: 
+                    # - Process anything strictly older than the newest data we have (max_key)
+                    # - This assumes data arrives roughly in order
+                    
+                    ready_keys = [k for k in buffer_keys if k < max_key]
+                    
+                    # Also check the max_key itself against wall clock
+                    # If max_key is older than 2 seconds ago, assume no more ticks coming for it
+                    if max_key < (current_second - 2):
+                        ready_keys.append(max_key)
+                        
+                    # Remove duplicates and sort
+                    ready_keys = sorted(list(set(ready_keys)))
+                    
+                    # DIAGNOSTIC: Log aggregation timing
+                    if loop_count <= 5 or loop_count % 10 == 0:
+                        current_dt = datetime.fromtimestamp(current_second, tz=pytz.UTC)
+                        
+                        self.stdout.write(self.style.WARNING(
+                            f'⏱️  AGGREGATION TIMING:\n'
+                            f'   System time: {current_dt.strftime("%H:%M:%S")} (ts={current_second})\n'
+                            f'   Buffer has {len(buffer_keys)} seconds: {buffer_keys[-10:] if len(buffer_keys) > 10 else buffer_keys}\n'
+                            f'   Ready to process: {len(ready_keys)} seconds: {ready_keys}\n'
+                            f'   Max key in buffer: {max_key}\n'
+                            f'   Last processed: {self.last_processed_second}'
+                        ))
+                    
+                    # Process all ready keys
+                    processed_count = 0
+                    for sec_to_process in ready_keys:
+                        # Only process if we haven't already processed this second
+                        if self.last_processed_second is None or sec_to_process > self.last_processed_second:
+                            self.aggregate_and_save_1sec_candle(sec_to_process)
+                            self.last_processed_second = sec_to_process
+                            processed_count += 1
+                        
+                        # Ensure key is removed from buffer even if we skipped processing
+                        # (e.g. if we somehow processed it already but didn't clear it)
+                        with self.lock:
+                            if sec_to_process in self.tick_buffer_1sec:
+                                del self.tick_buffer_1sec[sec_to_process]
+                    
+                    if processed_count > 0 and (loop_count % 10 == 0 or self.verbose):
+                        self.stdout.write(self.style.SUCCESS(f'⚡ Processed {processed_count} seconds in this iteration'))
 
-            # Update next second boundary
-            next_second = int(time.time()) + 1
+                    # Update next second boundary
+                    next_second = int(time.time()) + 1
+                    
+                except Exception as loop_error:
+                    self.stdout.write(self.style.ERROR(f'❌ Aggregation loop iteration failed: {loop_error}'))
+                    import traceback
+                    self.stdout.write(self.style.ERROR(traceback.format_exc()))
+                    # Sleep slightly to avoid tight loop if error persists
+                    time.sleep(1)
+                    next_second = int(time.time()) + 1
+                    
+        except Exception as fatal_error:
+            self.stdout.write(self.style.ERROR(f'❌ FATAL AGGREGATION LOOP CRASH: {fatal_error}'))
+            import traceback
+            self.stdout.write(self.style.ERROR(traceback.format_exc()))
+        finally:
+            self.stdout.write(self.style.WARNING('🛑 Aggregation loop stopped'))
     
     def on_message(self, ws, message):
         """Process incoming tick data"""
