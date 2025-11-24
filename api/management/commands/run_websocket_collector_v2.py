@@ -60,7 +60,7 @@ class Command(BaseCommand):
         self.ws = None
         self.ticker = None
         self.running = True
-        
+
         # Thread safety
         self.lock = threading.Lock()
 
@@ -75,7 +75,7 @@ class Command(BaseCommand):
         self.sentiment_queue = deque(maxlen=10)  # Queue of sentiment calculation results
         self.sentiment_thread = None
         self.sentiment_running = False
-        
+
         # Statistics
         self.total_ticks = 0
         self.total_1sec_candles = 0
@@ -83,14 +83,14 @@ class Command(BaseCommand):
         self.connection_start = None
         self.last_second_timestamp = None
         self.last_processed_second = None  # Track which second we last processed
-        
+
         # Duplicate prevention
         self.processed_seconds = set() # Keep track of seconds we've already closed
-        
+
         # Rate limiting backoff
         self.consecutive_429_errors = 0
         self.last_429_error_time = None
-        
+
         # Connection state tracking
         self.connection_established = False  # Track if we ever successfully connected
         self.last_connection_time = None
@@ -99,6 +99,18 @@ class Command(BaseCommand):
         # Health monitoring
         self.last_heartbeat_time = None
         self.heartbeat_thread = None
+
+        # CRITICAL: Track subscribed symbols for reconnection (EODHD requirement)
+        self.subscribed_symbols = []  # List of symbols we're subscribed to
+
+        # Error logging deduplication
+        self.error_logged = False
+        self.disconnect_logged = False
+
+        # Connection metrics
+        self.total_connections = 0
+        self.total_disconnections = 0
+        self.connection_start_time = None
         
     def add_arguments(self, parser):
         parser.add_argument(
@@ -160,14 +172,13 @@ class Command(BaseCommand):
         # Display startup info
         self.stdout.write(self.style.SUCCESS(
             '\n' + '='*70 + '\n'
-            '🚀 EODHD WebSocket Collector V2 (PRODUCTION-READY)\n'
+            '🚀 EODHD WebSocket Collector V2 (Second-by-Second Aggregation)\n'
             '='*70
         ))
         self.stdout.write(f'📊 Ticker: QLD (NASDAQ-100 2x Leveraged ETF)')
         self.stdout.write(f'📡 Symbol: {self.symbol}')
         self.stdout.write(f'⏰ Market Hours: 9:30 AM - 4:00 PM EST')
-        self.stdout.write(f'💾 Output: SecondSnapshot + TickCandle100 (ticks in-memory only)')
-        self.stdout.write(f'💚 Features: Async sentiment, health monitoring, auto-reconnect')
+        self.stdout.write(f'💾 Saves: 1-second candles + 100-tick candles')
         self.stdout.write('⌨️  Press Ctrl+C to stop\n')
         
         # Market hours loop
@@ -287,42 +298,137 @@ class Command(BaseCommand):
             self.ws.close()
     
     def connect_and_run(self):
-        """Establish WebSocket connection"""
-        self.stdout.write(self.style.WARNING('🔌 Connecting to EODHD WebSocket...'))
-        
-        # Reset connection state for new attempt
-        was_connected_before = self.connection_established
-        if was_connected_before:
-            self.stdout.write(self.style.WARNING(
-                f'   Previous connection was established. Attempting reconnection...'
-            ))
-        
-        # Create WebSocket app
-        self.ws = websocket.WebSocketApp(
-            WEBSOCKET_URL,
-            on_open=lambda ws: self.on_open(ws),
-            on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close
-        )
-        
-        # Disable SSL verification for macOS compatibility
-        import ssl
-        try:
-            self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(
-                f'❌ run_forever() exception: {e}'
-            ))
-            # run_forever() will call on_close, so we don't need to reset state here
-            raise
+        """Establish WebSocket connection with infinite retry and keepalive"""
+        retry_count = 0
+        max_backoff = 60  # Cap exponential backoff at 60 seconds
+
+        while self.running:
+            try:
+                # Calculate backoff delay
+                if retry_count > 0:
+                    delay = min(2 ** retry_count, max_backoff)
+                    self.stdout.write(self.style.WARNING(
+                        f'⏳ Reconnecting in {delay}s (attempt #{retry_count + 1})...'
+                    ))
+                    time.sleep(delay)
+
+                self.stdout.write(self.style.WARNING('🔌 Connecting to EODHD WebSocket...'))
+
+                # Reset connection state for new attempt
+                was_connected_before = self.connection_established
+                if was_connected_before:
+                    self.stdout.write(self.style.WARNING(
+                        f'   Previous connection was established. Attempting reconnection...'
+                    ))
+
+                # Create WebSocket app
+                self.ws = websocket.WebSocketApp(
+                    WEBSOCKET_URL,
+                    on_open=lambda ws: self.on_open(ws),
+                    on_message=self.on_message,
+                    on_error=self.on_error,
+                    on_close=self.on_close
+                )
+
+                # Disable SSL verification for macOS compatibility
+                import ssl
+                import socket
+
+                # CRITICAL: Enable WebSocket ping/pong keepalive to prevent idle timeout
+                self.stdout.write(self.style.SUCCESS('💓 Keepalive enabled: ping every 30s'))
+                self.ws.run_forever(
+                    sslopt={"cert_reqs": ssl.CERT_NONE},
+                    ping_interval=30,    # Send ping every 30 seconds
+                    ping_timeout=10,     # Wait 10 seconds for pong response
+                    ping_payload="keepalive"  # Optional payload
+                )
+
+                # If we reach here, connection closed (not an exception)
+                self.connection_established = False
+                retry_count += 1  # Increment for exponential backoff
+
+            except KeyboardInterrupt:
+                self.stdout.write(self.style.WARNING('🛑 Keyboard interrupt - stopping...'))
+                self.running = False
+                break
+
+            except Exception as e:
+                retry_count += 1
+                self.stdout.write(self.style.ERROR(
+                    f'❌ Connection error: {e}'
+                ))
+                # Continue loop - will retry with backoff
+
+        self.stdout.write(self.style.SUCCESS('✅ Connection loop exited'))
     
+    def subscribe_to_symbol(self, symbol):
+        """Subscribe to a single symbol"""
+        try:
+            subscribe_message = json.dumps({
+                "action": "subscribe",
+                "symbols": symbol
+            })
+            self.ws.send(subscribe_message)
+
+            # Track subscription
+            if symbol not in self.subscribed_symbols:
+                self.subscribed_symbols.append(symbol)
+
+            self.stdout.write(self.style.SUCCESS(f'✅ Subscribed to: {symbol}'))
+            return True
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'❌ Subscribe failed for {symbol}: {e}'))
+            return False
+
+    def resubscribe_all(self):
+        """CRITICAL: Resubscribe to all tracked symbols (required by EODHD after reconnect)"""
+        if not self.subscribed_symbols:
+            self.stdout.write(self.style.WARNING('⚠️  No previous subscriptions to restore'))
+            return False
+
+        try:
+            # Batch subscribe (more efficient per EODHD docs)
+            symbols_str = ",".join(self.subscribed_symbols)
+            subscribe_message = json.dumps({
+                "action": "subscribe",
+                "symbols": symbols_str
+            })
+            self.ws.send(subscribe_message)
+
+            self.stdout.write(self.style.SUCCESS(
+                f'✅ Resubscribed to {len(self.subscribed_symbols)} symbols: {symbols_str}'
+            ))
+            return True
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'❌ Resubscribe failed: {e}'))
+            return False
+
     def on_open(self, ws):
         """Called when WebSocket connection established"""
         self.connection_established = True
         self.last_connection_time = time.time()
-        self.stdout.write(self.style.SUCCESS('✅ WebSocket connected!'))
-        
+        self.connection_start_time = time.time()
+        self.total_connections += 1
+
+        self.stdout.write(self.style.SUCCESS(
+            f'✅ WebSocket connected! (Total connections: {self.total_connections})'
+        ))
+
+        # Enable TCP keepalive at socket level (backup for WebSocket ping)
+        try:
+            import socket
+            sock = ws.sock
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+            # Platform-specific TCP keepalive tuning (if available)
+            if hasattr(socket, 'TCP_KEEPIDLE'):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+                self.stdout.write(self.style.SUCCESS('💓 TCP keepalive enabled'))
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f'⚠️  TCP keepalive setup failed: {e}'))
+
         # Reset rate limit counter on successful connection
         if self.consecutive_429_errors > 0:
             self.stdout.write(self.style.SUCCESS(
@@ -330,37 +436,38 @@ class Command(BaseCommand):
             ))
             self.consecutive_429_errors = 0
             self.last_429_error_time = None
-        
-        # Subscribe
-        subscribe_message = {
-            "action": "subscribe",
-            "symbols": self.symbol
-        }
-        ws.send(json.dumps(subscribe_message))
-        self.stdout.write(self.style.SUCCESS(f'📡 Subscription request sent for: {self.symbol}'))
+
+        # CRITICAL: Resubscribe if this is a reconnection, otherwise initial subscribe
+        if self.subscribed_symbols:
+            # This is a reconnection - resubscribe to existing symbols
+            self.stdout.write(self.style.WARNING('🔄 Reconnection detected - resubscribing...'))
+            self.resubscribe_all()
+        else:
+            # Initial connection - subscribe to symbol
+            self.subscribe_to_symbol(self.symbol)
+
         self.stdout.write(self.style.WARNING('⏳ Waiting for server confirmation and data stream...'))
-        
-        # Start aggregation timer
-        self.aggregation_thread = threading.Thread(target=self.aggregation_loop, daemon=True)
-        self.aggregation_thread.start()
-        self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started'))
 
-        # Start async sentiment calculation thread
-        self.sentiment_running = True
-        self.sentiment_thread = threading.Thread(target=self.sentiment_calculation_loop, daemon=True)
-        self.sentiment_thread.start()
-        self.stdout.write(self.style.SUCCESS('💚 Async sentiment calculator started'))
+        # Start aggregation timer (only if not already running)
+        if not hasattr(self, 'aggregation_thread') or not self.aggregation_thread.is_alive():
+            self.aggregation_thread = threading.Thread(target=self.aggregation_loop, daemon=True)
+            self.aggregation_thread.start()
+            self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started'))
 
-        # Start connection health monitoring thread
-        self.heartbeat_thread = threading.Thread(target=self.health_monitor_loop, daemon=True)
-        self.heartbeat_thread.start()
-        self.stdout.write(self.style.SUCCESS('💓 Connection health monitor started'))
+        # Start async sentiment calculation thread (only if not already running)
+        if not hasattr(self, 'sentiment_thread') or not self.sentiment_thread.is_alive():
+            self.sentiment_running = True
+            self.sentiment_thread = threading.Thread(target=self.sentiment_calculation_loop, daemon=True)
+            self.sentiment_thread.start()
+            self.stdout.write(self.style.SUCCESS('💚 Async sentiment calculator started'))
+
+        # Start connection health monitoring thread (only if not already running)
+        if not hasattr(self, 'heartbeat_thread') or not self.heartbeat_thread.is_alive():
+            self.heartbeat_thread = threading.Thread(target=self.health_monitor_loop, daemon=True)
+            self.heartbeat_thread.start()
+            self.stdout.write(self.style.SUCCESS('💓 Connection health monitor started'))
 
         # DISABLED: Finnhub news loop (temporarily disabled for second-by-second processing)
-        # News fetching will only happen at 1-minute intervals via run_nasdaq_sentiment.py
-        # self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
-        # self.news_thread.start()
-        # self.stdout.write(self.style.SUCCESS('📰 News fetch loop started\n'))
         self.stdout.write(self.style.NOTICE('📰 Finnhub news loop DISABLED (only active at 1-minute intervals)\n'))
     
     def sentiment_calculation_loop(self):
@@ -422,41 +529,52 @@ class Command(BaseCommand):
 
     def health_monitor_loop(self):
         """
-        Monitor WebSocket connection health.
-        Check for stale connections and trigger reconnect if needed.
+        Monitor WebSocket connection health with faster detection.
+        EODHD baseline: <50ms transport latency, so 60s without data = problem.
         """
         self.stdout.write(self.style.SUCCESS('💓 Health monitor loop started'))
+
+        last_health_log = 0
+        stale_threshold = 60  # Alert if no data for 60s (was 120s)
+        check_interval = 10   # Check every 10s (was 120s via sleep)
 
         while self.running:
             try:
                 current_time = time.time()
 
                 # Check if we're connected and receiving data
-                if self.connection_established and self.last_data_received_time:
-                    time_since_last_data = current_time - self.last_data_received_time
+                if self.connection_established:
+                    if self.last_data_received_time:
+                        time_since_last_data = current_time - self.last_data_received_time
 
-                    # If no data received in 120 seconds, connection might be stale
-                    if time_since_last_data > 120:
-                        self.stdout.write(self.style.ERROR(
-                            f'❌ STALE CONNECTION DETECTED: No data received for {time_since_last_data:.0f}s. '
-                            f'Closing connection to trigger reconnect...'
-                        ))
-                        if self.ws:
-                            self.ws.close()
+                        # CRITICAL: Detect stale connections faster
+                        if time_since_last_data > stale_threshold:
+                            self.stdout.write(self.style.ERROR(
+                                f'❌ STALE CONNECTION: No data for {time_since_last_data:.0f}s (threshold: {stale_threshold}s)\n'
+                                f'   EODHD baseline is <50ms latency - this connection is dead.\n'
+                                f'   Forcing reconnect...'
+                            ))
+                            if self.ws:
+                                self.ws.close()
 
                     # Log health status every 60 seconds
-                    elif int(current_time) % 60 == 0:
+                    if current_time - last_health_log >= 60:
+                        uptime = current_time - self.connection_start_time if self.connection_start_time else 0
+                        data_delay = current_time - self.last_data_received_time if self.last_data_received_time else 0
+
                         self.stdout.write(self.style.SUCCESS(
-                            f'💓 Health: Connection active, last data {time_since_last_data:.0f}s ago, '
-                            f'{self.total_ticks} ticks, {self.total_1sec_candles} candles, '
-                            f'buffer: {len(self.tick_buffer_1sec)} seconds'
+                            f'💓 Health Check:\n'
+                            f'   Uptime: {uptime:.0f}s | Last data: {data_delay:.0f}s ago\n'
+                            f'   Ticks: {self.total_ticks:,} | Candles: {self.total_1sec_candles:,}\n'
+                            f'   Buffer: {len(self.tick_buffer_1sec)} seconds | Connections: {self.total_connections} | Disconnects: {self.total_disconnections}'
                         ))
+                        last_health_log = current_time
 
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f'⚠️  Health monitor error: {e}'))
 
-            # Check every 10 seconds
-            time.sleep(10)
+            # Check every 10 seconds (faster detection)
+            time.sleep(check_interval)
 
         self.stdout.write(self.style.WARNING('💓 Health monitor loop stopped'))
 
@@ -614,25 +732,39 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING('🛑 Aggregation loop stopped'))
     
     def on_message(self, ws, message):
-        """Process incoming tick data"""
+        """Process incoming tick data with validation"""
         try:
-            data = json.loads(message)
-            
+            # Parse JSON
+            try:
+                data = json.loads(message)
+            except json.JSONDecodeError as e:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Invalid JSON received: {message[:100]}... | Error: {e}'
+                ))
+                return
+
             # Handle status/error messages (ALWAYS LOG THESE)
             if 'error' in data:
                 self.stdout.write(self.style.ERROR(f'❌ Server error: {data.get("error")}'))
                 return
-            
+
             if 'status' in data or 'message' in data:
                 # ALWAYS log server status/messages (not just verbose mode)
                 self.stdout.write(self.style.SUCCESS(f'📢 Server says: {data}'))
                 return
-            
+
             # Extract tick data
             symbol = data.get('s', '')
             price = data.get('p', None)
             volume = data.get('v', 0)
             timestamp_unix = data.get('t', None)
+
+            # Validate required fields (per EODHD schema)
+            if not symbol or price is None:
+                self.stdout.write(self.style.WARNING(
+                    f'⚠️  Incomplete tick data (missing symbol/price): {data}'
+                ))
+                return
             
             # DIAGNOSTIC: Log raw timestamp data
             if self.total_ticks < 5 or self.total_ticks % 100 == 0:
@@ -644,16 +776,14 @@ class Command(BaseCommand):
                     f'Data: {data}'
                 ))
             
-            # Try bid/ask if no trade price
+            # Try bid/ask if no trade price (fallback)
             if price is None:
                 price = data.get('bp', data.get('ap', None))
-            
-            # Log if we get unexpected data format
-            if not symbol or price is None:
-                self.stdout.write(self.style.WARNING(
-                    f'⚠️  Received data but missing symbol/price: {data}'
-                ))
-                return
+                if price is None:
+                    self.stdout.write(self.style.WARNING(
+                        f'⚠️  No valid price field found in data: {data}'
+                    ))
+                    return
             
             # Log first tick arrival (important milestone!)
             if self.total_ticks == 0:
@@ -758,11 +888,9 @@ class Command(BaseCommand):
                     f'📊 Tick #{self.total_ticks:>6}: {dt.strftime("%H:%M:%S")} | '
                     f'${price:>8.2f} | Vol: {volume:>8,} | Buffer: {len(self.tick_buffer_1sec)} seconds'
                 )
-        
-        except json.JSONDecodeError:
-            # Always log non-JSON messages (could be important server info)
-            self.stdout.write(self.style.WARNING(f'⚠️  Non-JSON message: {message[:200]}'))
+
         except Exception as e:
+            # Never crash on bad data - log and continue
             self.stdout.write(self.style.ERROR(f'❌ Error processing message: {e}'))
             if self.verbose:
                 import traceback
@@ -992,21 +1120,26 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f'❌ Error creating 100-tick candle: {e}'))
     
     def on_error(self, ws, error):
-        """Handle WebSocket errors"""
+        """Handle WebSocket errors (with duplicate prevention)"""
+        # Prevent duplicate error logging within 2 seconds
+        if self.error_logged:
+            return
+
+        self.error_logged = True
         error_str = str(error)
-        
+
         self.stdout.write(self.style.ERROR(
             '\n' + '='*70 + '\n'
             '❌ WEBSOCKET ERROR EVENT\n'
             '='*70 + '\n'
             f'Error Details: {error}\n'
         ))
-        
+
         # Detect 429 rate limiting errors
         if '429' in error_str or 'Too Many Requests' in error_str:
             self.consecutive_429_errors += 1
             self.last_429_error_time = time.time()
-            
+
             if self.connection_established:
                 self.stdout.write(self.style.WARNING(
                     f'🚫 Error Type: RATE LIMIT (429) - Server closed ESTABLISHED connection\n'
@@ -1021,7 +1154,7 @@ class Command(BaseCommand):
                     f'   Consecutive 429 errors: {self.consecutive_429_errors}\n'
                     f'   Connection never established'
                 ))
-        
+
         # Log other common disconnection causes
         elif '502' in error_str or 'Bad Gateway' in error_str:
             self.stdout.write(self.style.WARNING(
@@ -1040,36 +1173,47 @@ class Command(BaseCommand):
                 f'🚫 Error Type: UNKNOWN\n'
                 f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
             ))
-        
+
         self.stdout.write(self.style.ERROR('='*70 + '\n'))
+
+        # Reset flag after 2 seconds
+        threading.Timer(2.0, lambda: setattr(self, 'error_logged', False)).start()
     
     def on_close(self, ws, close_status_code, close_msg):
-        """Handle WebSocket close"""
+        """Handle WebSocket close (with duplicate prevention)"""
+        # Prevent duplicate disconnect logging within 2 seconds
+        if self.disconnect_logged:
+            return
+
+        self.disconnect_logged = True
+        self.total_disconnections += 1
+
         # Determine if this was an established connection or failed handshake
         was_connected = self.connection_established
         connection_duration = None
         if self.last_connection_time:
             connection_duration = time.time() - self.last_connection_time
-        
+
         self.stdout.write(self.style.WARNING(
             '\n' + '='*70 + '\n'
             '🔌 WEBSOCKET DISCONNECTION EVENT\n'
             '='*70
         ))
-        
+
         if was_connected:
             self.stdout.write(self.style.WARNING(
                 f'📊 Connection Status: ESTABLISHED connection was CLOSED\n'
                 f'⏱️  Connection Duration: {connection_duration:.1f} seconds\n'
                 f'📈 Total ticks collected: {self.total_ticks:,}\n'
-                f'📊 SecondSnapshots created: {self.total_1sec_candles:,}'
+                f'📊 SecondSnapshots created: {self.total_1sec_candles:,}\n'
+                f'🔄 Total disconnections: {self.total_disconnections}'
             ))
         else:
             self.stdout.write(self.style.WARNING(
                 f'📊 Connection Status: HANDSHAKE FAILED (connection never established)\n'
                 f'❌ Could not complete WebSocket handshake with server'
             ))
-        
+
         if close_status_code:
             self.stdout.write(self.style.WARNING(
                 f'🔢 Close Code: {close_status_code}'
@@ -1080,18 +1224,21 @@ class Command(BaseCommand):
                 ))
         else:
             self.stdout.write(self.style.WARNING(
-                f'🔢 Close Code: None (abnormal closure)'
+                f'🔢 Close Code: None (abnormal closure - likely idle timeout or network drop)'
             ))
-        
+
         if self.consecutive_429_errors > 0:
             self.stdout.write(self.style.WARNING(
                 f'⚠️  Rate Limit Context: {self.consecutive_429_errors} consecutive 429 errors'
             ))
-        
+
         self.stdout.write(self.style.WARNING('='*70 + '\n'))
-        
+
         # Reset connection state
         self.connection_established = False
+
+        # Reset flag after 2 seconds
+        threading.Timer(2.0, lambda: setattr(self, 'disconnect_logged', False)).start()
     
     def cleanup(self):
         """Cleanup and display statistics"""
