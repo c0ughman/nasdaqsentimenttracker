@@ -417,17 +417,21 @@ class Command(BaseCommand):
         # Enable TCP keepalive at socket level (backup for WebSocket ping)
         try:
             import socket
-            sock = ws.sock
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            # Get the underlying socket from the WebSocket connection
+            if hasattr(ws, 'sock') and ws.sock and hasattr(ws.sock, 'socket'):
+                sock = ws.sock.socket  # Get the actual socket object
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-            # Platform-specific TCP keepalive tuning (if available)
-            if hasattr(socket, 'TCP_KEEPIDLE'):
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+                # Platform-specific TCP keepalive tuning (if available)
+                if hasattr(socket, 'TCP_KEEPIDLE'):
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
                 self.stdout.write(self.style.SUCCESS('💓 TCP keepalive enabled'))
         except Exception as e:
-            self.stdout.write(self.style.WARNING(f'⚠️  TCP keepalive setup failed: {e}'))
+            # TCP keepalive is optional - WebSocket ping/pong is the primary mechanism
+            if self.verbose:
+                self.stdout.write(self.style.NOTICE(f'ℹ️  TCP keepalive not available (using WebSocket ping/pong only): {e}'))
 
         # Reset rate limit counter on successful connection
         if self.consecutive_429_errors > 0:
@@ -449,20 +453,20 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING('⏳ Waiting for server confirmation and data stream...'))
 
         # Start aggregation timer (only if not already running)
-        if not hasattr(self, 'aggregation_thread') or not self.aggregation_thread.is_alive():
+        if not hasattr(self, 'aggregation_thread') or self.aggregation_thread is None or not self.aggregation_thread.is_alive():
             self.aggregation_thread = threading.Thread(target=self.aggregation_loop, daemon=True)
             self.aggregation_thread.start()
             self.stdout.write(self.style.SUCCESS('⏱️  Aggregation timer started'))
 
         # Start async sentiment calculation thread (only if not already running)
-        if not hasattr(self, 'sentiment_thread') or not self.sentiment_thread.is_alive():
+        if not hasattr(self, 'sentiment_thread') or self.sentiment_thread is None or not self.sentiment_thread.is_alive():
             self.sentiment_running = True
             self.sentiment_thread = threading.Thread(target=self.sentiment_calculation_loop, daemon=True)
             self.sentiment_thread.start()
             self.stdout.write(self.style.SUCCESS('💚 Async sentiment calculator started'))
 
         # Start connection health monitoring thread (only if not already running)
-        if not hasattr(self, 'heartbeat_thread') or not self.heartbeat_thread.is_alive():
+        if not hasattr(self, 'heartbeat_thread') or self.heartbeat_thread is None or not self.heartbeat_thread.is_alive():
             self.heartbeat_thread = threading.Thread(target=self.health_monitor_loop, daemon=True)
             self.heartbeat_thread.start()
             self.stdout.write(self.style.SUCCESS('💓 Connection health monitor started'))
