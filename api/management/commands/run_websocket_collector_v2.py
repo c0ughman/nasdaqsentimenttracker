@@ -535,6 +535,7 @@ class Command(BaseCommand):
         """
         Monitor WebSocket connection health with faster detection.
         EODHD baseline: <50ms transport latency, so 60s without data = problem.
+        Also enforces market hours by disconnecting after market close.
         """
         self.stdout.write(self.style.SUCCESS('💓 Health monitor loop started'))
 
@@ -545,6 +546,19 @@ class Command(BaseCommand):
         while self.running:
             try:
                 current_time = time.time()
+
+                # CRITICAL: Check market hours and disconnect if market is closed
+                if self.connection_established and not self.skip_market_hours:
+                    market_open, reason = self.is_market_open()
+                    if not market_open:
+                        self.stdout.write(self.style.WARNING(
+                            f'🔔 Market closed during active connection: {reason}\n'
+                            f'   Disconnecting to stop data collection...'
+                        ))
+                        self.running = False  # Stop the entire collector
+                        if self.ws:
+                            self.ws.close()
+                        break
 
                 # Check if we're connected and receiving data
                 if self.connection_established:
