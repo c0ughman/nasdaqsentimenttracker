@@ -598,7 +598,10 @@ def second_candles_data(request):
                 'low': float(candle.ohlc_1sec_low),
                 'close': float(candle.ohlc_1sec_close),
                 'volume': candle.ohlc_1sec_volume,
-                'tick_count': candle.ohlc_1sec_tick_count
+                'tick_count': candle.ohlc_1sec_tick_count,
+                'composite_score': float(candle.composite_score) if candle.composite_score else 0.0,
+                'news_component': float(candle.news_score_cached) if candle.news_score_cached else 0.0,
+                'technical_component': float(candle.technical_score_cached) if candle.technical_score_cached else 0.0
             })
         
         return Response({
