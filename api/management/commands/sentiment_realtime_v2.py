@@ -39,10 +39,12 @@ TECHNICAL_BASE_WEIGHT = 0.8  # 80% from base/macro
 TECHNICAL_MICRO_WEIGHT = 0.2  # 20% from micro momentum
 
 # Composite weights (MUST match run_nasdaq_sentiment.py)
-WEIGHT_NEWS = 0.35
+# News: 45%, Social: 20%, Technical: 15%, Analyst: 10%, VIX: 10%
+WEIGHT_NEWS = 0.45
 WEIGHT_REDDIT = 0.20
-WEIGHT_TECHNICAL = 0.25
-WEIGHT_ANALYST = 0.20
+WEIGHT_TECHNICAL = 0.15
+WEIGHT_ANALYST = 0.10
+WEIGHT_VIX = 0.10
 
 # Macro technical cache duration
 MACRO_CACHE_DURATION = 60  # seconds
@@ -102,16 +104,32 @@ def get_base_scores(ticker_symbol='QLD'):
                     ticker=ticker
                 ).order_by('-timestamp').first()
                 
-                reddit_score = float(analysis_run.reddit_composite) if analysis_run and hasattr(analysis_run, 'reddit_composite') and analysis_run.reddit_composite else 0.0
-                analyst_score = float(analysis_run.analyst_composite) if analysis_run and hasattr(analysis_run, 'analyst_composite') and analysis_run.analyst_composite else 0.0
-                
+                reddit_score = float(analysis_run.reddit_sentiment) if analysis_run and analysis_run.reddit_sentiment else 0.0
+                analyst_score = float(analysis_run.analyst_recommendations_score) if analysis_run and analysis_run.analyst_recommendations_score else 0.0
+
+                # Calculate VIX inverse score from VXN index
+                vix_score = 0.0
+                if analysis_run and analysis_run.vxn_index:
+                    vxn = float(analysis_run.vxn_index)
+                    if vxn < 15:
+                        vix_score = 50.0
+                    elif vxn < 20:
+                        vix_score = 25.0
+                    elif vxn < 25:
+                        vix_score = 0.0
+                    elif vxn < 30:
+                        vix_score = -25.0
+                    else:
+                        vix_score = -50.0
+
                 logger.info(f"Using SecondSnapshot from {age_seconds:.1f}s ago as base")
-                
+
                 return {
                     'news': float(latest_snapshot.news_score_cached) if latest_snapshot.news_score_cached else 0.0,
                     'reddit': reddit_score,
                     'technical': float(latest_snapshot.technical_score_cached) if latest_snapshot.technical_score_cached else 0.0,
                     'analyst': analyst_score,
+                    'vix_inverse': vix_score,
                     'composite': float(latest_snapshot.composite_score) if latest_snapshot.composite_score else 0.0,
                     'source': 'second_snapshot',
                     'timestamp': latest_snapshot.timestamp
@@ -127,6 +145,7 @@ def get_base_scores(ticker_symbol='QLD'):
                 'reddit': 0.0,
                 'technical': 0.0,
                 'analyst': 0.0,
+                'vix_inverse': 0.0,
                 'composite': 0.0,
                 'source': 'none',
                 'timestamp': timezone.now()
@@ -135,26 +154,38 @@ def get_base_scores(ticker_symbol='QLD'):
         age_minutes = (timezone.now() - latest_run.timestamp).total_seconds() / 60
         logger.info(f"Using AnalysisRun from {age_minutes:.1f}min ago as base (SecondSnapshot unavailable)")
         
-        # Extract scores from AnalysisRun
-        news_score = float(latest_run.news_composite) if hasattr(latest_run, 'news_composite') and latest_run.news_composite else 0.0
-        reddit_score = float(latest_run.reddit_composite) if hasattr(latest_run, 'reddit_composite') and latest_run.reddit_composite else 0.0
-        technical_score = float(latest_run.technical_composite) if hasattr(latest_run, 'technical_composite') and latest_run.technical_composite else 0.0
-        analyst_score = float(latest_run.analyst_composite) if hasattr(latest_run, 'analyst_composite') and latest_run.analyst_composite else 0.0
-        
-        # If individual components not available, estimate from composite
-        if news_score == 0.0 and reddit_score == 0.0 and technical_score == 0.0:
-            composite = float(latest_run.composite_score) if latest_run.composite_score else 0.0
-            # Rough estimation (not ideal but works as fallback)
-            news_score = composite * (WEIGHT_NEWS / (WEIGHT_NEWS + WEIGHT_REDDIT + WEIGHT_TECHNICAL + WEIGHT_ANALYST))
-            reddit_score = composite * (WEIGHT_REDDIT / (WEIGHT_NEWS + WEIGHT_REDDIT + WEIGHT_TECHNICAL + WEIGHT_ANALYST))
-            technical_score = composite * (WEIGHT_TECHNICAL / (WEIGHT_NEWS + WEIGHT_REDDIT + WEIGHT_TECHNICAL + WEIGHT_ANALYST))
-            analyst_score = composite * (WEIGHT_ANALYST / (WEIGHT_NEWS + WEIGHT_REDDIT + WEIGHT_TECHNICAL + WEIGHT_ANALYST))
-        
+        # Extract component scores from AnalysisRun using correct field names
+        # All scores are already in -100 to +100 range
+
+        # avg_base_sentiment stores news_composite (with decay applied)
+        news_score = float(latest_run.avg_base_sentiment) if latest_run.avg_base_sentiment is not None else 0.0
+
+        # Direct component scores
+        reddit_score = float(latest_run.reddit_sentiment) if latest_run.reddit_sentiment else 0.0
+        technical_score = float(latest_run.technical_composite_score) if latest_run.technical_composite_score else 0.0
+        analyst_score = float(latest_run.analyst_recommendations_score) if latest_run.analyst_recommendations_score else 0.0
+
+        # Calculate VIX inverse score from VXN index
+        vix_score = 0.0
+        if latest_run.vxn_index:
+            vxn = float(latest_run.vxn_index)
+            if vxn < 15:
+                vix_score = 50.0
+            elif vxn < 20:
+                vix_score = 25.0
+            elif vxn < 25:
+                vix_score = 0.0
+            elif vxn < 30:
+                vix_score = -25.0
+            else:
+                vix_score = -50.0
+
         return {
             'news': news_score,
             'reddit': reddit_score,
             'technical': technical_score,
             'analyst': analyst_score,
+            'vix_inverse': vix_score,
             'composite': float(latest_run.composite_score) if latest_run.composite_score else 0.0,
             'source': 'analysis_run',
             'timestamp': latest_run.timestamp
@@ -167,6 +198,7 @@ def get_base_scores(ticker_symbol='QLD'):
             'reddit': 0.0,
             'technical': 0.0,
             'analyst': 0.0,
+            'vix_inverse': 0.0,
             'composite': 0.0,
             'source': 'error',
             'timestamp': timezone.now()
@@ -327,17 +359,18 @@ def blend_technical_scores(base_technical, micro_momentum):
 # COMPOSITE CALCULATION
 # ============================================================================
 
-def calculate_composite(news, reddit, technical, analyst):
+def calculate_composite(news, reddit, technical, analyst, vix_inverse):
     """
-    Calculate composite score from 4 components.
+    Calculate composite score from 5 components.
     Uses EXACT same weights as run_nasdaq_sentiment.py
-    
+
     Args:
         news: News sentiment score
         reddit: Reddit sentiment score
         technical: Technical score
         analyst: Analyst recommendations score
-    
+        vix_inverse: VIX inverse score (volatility gauge)
+
     Returns:
         float: Composite score (-100 to +100)
     """
@@ -345,9 +378,10 @@ def calculate_composite(news, reddit, technical, analyst):
         news * WEIGHT_NEWS +
         reddit * WEIGHT_REDDIT +
         technical * WEIGHT_TECHNICAL +
-        analyst * WEIGHT_ANALYST
+        analyst * WEIGHT_ANALYST +
+        vix_inverse * WEIGHT_VIX
     )
-    
+
     return float(np.clip(composite, -100, 100))
 
 
@@ -413,10 +447,11 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
             # At minute boundary, reset more toward macro
             technical_updated = (macro_technical * 0.7) + (technical_updated * 0.3)
         
-        # 3. REDDIT & ANALYST: Unchanged (updated only at minute boundaries)
+        # 3. REDDIT, ANALYST, VIX: Unchanged (updated only at minute boundaries)
         reddit_updated = base['reddit']
         analyst_updated = base['analyst']
-        
+        vix_inverse_updated = base['vix_inverse']
+
         # If source is analysis_run and it's old, apply decay to reddit/analyst too
         if base['source'] == 'analysis_run':
             age_seconds = (timezone.now() - base['timestamp']).total_seconds()
@@ -425,13 +460,14 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
                 reddit_updated *= decay_factor
                 analyst_updated *= decay_factor
                 logger.warning(f"Applied decay to reddit/analyst (analysis_run is {age_seconds:.0f}s old)")
-        
+
         # 4. CALCULATE COMPOSITE
         composite_updated = calculate_composite(
             news_updated,
             reddit_updated,
             technical_updated,
-            analyst_updated
+            analyst_updated,
+            vix_inverse_updated
         )
         
         return {
