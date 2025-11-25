@@ -471,8 +471,15 @@ class Command(BaseCommand):
             self.heartbeat_thread.start()
             self.stdout.write(self.style.SUCCESS('💓 Connection health monitor started'))
 
-        # DISABLED: Finnhub news loop (temporarily disabled for second-by-second processing)
-        self.stdout.write(self.style.NOTICE('📰 Finnhub news loop DISABLED (only active at 1-minute intervals)\n'))
+        # Start Finnhub news loop (non-blocking, optional)
+        try:
+            if not hasattr(self, 'news_thread') or self.news_thread is None or not self.news_thread.is_alive():
+                self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
+                self.news_thread.start()
+                self.stdout.write(self.style.SUCCESS('📰 Finnhub news loop started (second-by-second)'))
+        except Exception as e:
+            # If Finnhub isn't configured or errors, log and continue without breaking collector
+            self.stdout.write(self.style.NOTICE(f'📰 Finnhub news loop not started: {e}'))
     
     def sentiment_calculation_loop(self):
         """
