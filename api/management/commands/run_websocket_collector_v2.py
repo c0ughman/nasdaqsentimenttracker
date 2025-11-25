@@ -46,6 +46,13 @@ except ImportError:
 EODHD_API_KEY = os.environ.get('EODHD_API_KEY', '')
 WEBSOCKET_URL = f"wss://ws.eodhistoricaldata.com/ws/us?api_token={EODHD_API_KEY}"
 
+# Optional: enable/disable Finnhub integration for second-by-second processing
+FINNHUB_SECOND_BY_SECOND_ENABLED = os.getenv('FINNHUB_SECOND_BY_SECOND_ENABLED', 'false').lower() in (
+    '1',
+    'true',
+    'yes',
+)
+
 # Market hours (EST)
 MARKET_OPEN_TIME = datetime_time(9, 30)  # 9:30 AM
 MARKET_CLOSE_TIME = datetime_time(16, 0)  # 4:00 PM
@@ -154,15 +161,18 @@ class Command(BaseCommand):
         if last_candle:
             self.stdout.write(self.style.SUCCESS(f'🔢 Resuming 100-tick candles from #{self.candle_100_number + 1}'))
         
-        # Initialize Finnhub real-time news (optional - fails gracefully if not configured)
-        try:
-            from api.management.commands.finnhub_realtime_v2 import initialize as init_finnhub
-            if init_finnhub():
-                self.stdout.write(self.style.SUCCESS('📰 Finnhub real-time news enabled'))
-            else:
-                self.stdout.write(self.style.NOTICE('📰 Finnhub disabled (API key not set or module unavailable)'))
-        except Exception as e:
-            self.stdout.write(self.style.NOTICE(f'📰 Finnhub disabled ({str(e)})'))
+        # Initialize Finnhub real-time news (optional - controlled by env flag and fails gracefully)
+        if FINNHUB_SECOND_BY_SECOND_ENABLED:
+            try:
+                from api.management.commands.finnhub_realtime_v2 import initialize as init_finnhub
+                if init_finnhub():
+                    self.stdout.write(self.style.SUCCESS('📰 Finnhub real-time news enabled'))
+                else:
+                    self.stdout.write(self.style.NOTICE('📰 Finnhub disabled (API key not set or module unavailable)'))
+            except Exception as e:
+                self.stdout.write(self.style.NOTICE(f'📰 Finnhub disabled ({str(e)})'))
+        else:
+            self.stdout.write(self.style.NOTICE('📰 Finnhub real-time news disabled by config (FINNHUB_SECOND_BY_SECOND_ENABLED=false)'))
 
         
         # Signal handlers
@@ -471,15 +481,18 @@ class Command(BaseCommand):
             self.heartbeat_thread.start()
             self.stdout.write(self.style.SUCCESS('💓 Connection health monitor started'))
 
-        # Start Finnhub news loop (non-blocking, optional)
-        try:
-            if not hasattr(self, 'news_thread') or self.news_thread is None or not self.news_thread.is_alive():
-                self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
-                self.news_thread.start()
-                self.stdout.write(self.style.SUCCESS('📰 Finnhub news loop started (second-by-second)'))
-        except Exception as e:
-            # If Finnhub isn't configured or errors, log and continue without breaking collector
-            self.stdout.write(self.style.NOTICE(f'📰 Finnhub news loop not started: {e}'))
+        # Start Finnhub news loop (non-blocking, optional, gated by config)
+        if FINNHUB_SECOND_BY_SECOND_ENABLED:
+            try:
+                if not hasattr(self, 'news_thread') or self.news_thread is None or not self.news_thread.is_alive():
+                    self.news_thread = threading.Thread(target=self.news_loop, daemon=True)
+                    self.news_thread.start()
+                    self.stdout.write(self.style.SUCCESS('📰 Finnhub news loop started (second-by-second)'))
+            except Exception as e:
+                # If Finnhub isn't configured or errors, log and continue without breaking collector
+                self.stdout.write(self.style.NOTICE(f'📰 Finnhub news loop not started: {e}'))
+        else:
+            self.stdout.write(self.style.NOTICE('📰 Finnhub news loop disabled by config (FINNHUB_SECOND_BY_SECOND_ENABLED=false)'))
     
     def sentiment_calculation_loop(self):
         """
