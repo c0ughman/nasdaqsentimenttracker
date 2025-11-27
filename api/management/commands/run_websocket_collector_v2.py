@@ -83,6 +83,10 @@ class Command(BaseCommand):
         self.sentiment_thread = None
         self.sentiment_running = False
 
+        # News threads (initialize to None for safety)
+        self.news_thread = None
+        self.tiingo_thread = None
+
         # Statistics
         self.total_ticks = 0
         self.total_1sec_candles = 0
@@ -174,7 +178,17 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.NOTICE('📰 Finnhub real-time news disabled by config (FINNHUB_SECOND_BY_SECOND_ENABLED=false)'))
 
-        
+        # Initialize Tiingo real-time news (optional - controlled by env flag and fails gracefully)
+        try:
+            from api.management.commands.tiingo_realtime_news import initialize as init_tiingo
+            if init_tiingo():
+                self.stdout.write(self.style.SUCCESS('📰 Tiingo real-time news enabled'))
+            else:
+                self.stdout.write(self.style.NOTICE('📰 Tiingo disabled (ENABLE_TIINGO_NEWS=False or API key not set)'))
+        except Exception as e:
+            self.stdout.write(self.style.NOTICE(f'📰 Tiingo disabled ({str(e)})'))
+
+
         # Signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -493,7 +507,21 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.NOTICE(f'📰 Finnhub news loop not started: {e}'))
         else:
             self.stdout.write(self.style.NOTICE('📰 Finnhub news loop disabled by config (FINNHUB_SECOND_BY_SECOND_ENABLED=false)'))
-    
+
+        # Start Tiingo news loop (non-blocking, optional, gated by env flag)
+        try:
+            from api.management.commands.tiingo_realtime_news import ENABLE_TIINGO_NEWS
+            if ENABLE_TIINGO_NEWS:
+                if not hasattr(self, 'tiingo_thread') or self.tiingo_thread is None or not self.tiingo_thread.is_alive():
+                    self.tiingo_thread = threading.Thread(target=self.tiingo_news_loop, daemon=True)
+                    self.tiingo_thread.start()
+                    self.stdout.write(self.style.SUCCESS('📰 Tiingo news loop started (5-second polling)'))
+            else:
+                self.stdout.write(self.style.NOTICE('📰 Tiingo news loop disabled (ENABLE_TIINGO_NEWS=False)'))
+        except Exception as e:
+            # If Tiingo isn't configured or errors, log and continue without breaking collector
+            self.stdout.write(self.style.NOTICE(f'📰 Tiingo news loop not started: {e}'))
+
     def sentiment_calculation_loop(self):
         """
         Async sentiment calculation loop - runs every second.
@@ -642,6 +670,42 @@ class Command(BaseCommand):
 
             # Sleep 1 second
             time.sleep(1)
+
+    def tiingo_news_loop(self):
+        """Run every 5 seconds to fetch Tiingo news (non-blocking)"""
+        self.stdout.write(self.style.SUCCESS('📰 Tiingo news loop started'))
+
+        while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
+            try:
+                from api.management.commands.tiingo_realtime_news import query_tiingo_for_news
+
+                # Query Tiingo (polls every 5 seconds, hybrid approach)
+                # This function manages its own time windows and puts articles into a queue
+                tiingo_result = query_tiingo_for_news()
+
+                if tiingo_result.get('queued_for_scoring', 0) > 0:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'📰 Tiingo: Queued {tiingo_result["queued_for_scoring"]} articles for scoring '
+                        f'(found {tiingo_result.get("articles_found", 0)} total)'
+                    ))
+                elif tiingo_result.get('error'):
+                    if self.verbose:
+                        self.stdout.write(self.style.WARNING(f'Tiingo query error: {tiingo_result.get("error")}'))
+                elif tiingo_result.get('reason') == 'disabled':
+                    # Tiingo is disabled, stop the loop
+                    self.stdout.write(self.style.NOTICE('📰 Tiingo disabled, stopping loop'))
+                    break
+
+            except Exception as e:
+                # Comprehensive error catching - failures must not affect SecondSnapshot generation
+                if self.verbose:
+                    self.stdout.write(self.style.ERROR(f'❌ Tiingo news loop error: {e}'))
+                # Continue running even on errors
+
+            # Sleep 5 seconds (Tiingo polling interval)
+            time.sleep(5)
+
+        self.stdout.write(self.style.NOTICE('📰 Tiingo news loop stopped'))
 
     def aggregation_loop(self):
         """Run every second on the dot to create 1-second candles"""

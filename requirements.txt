@@ -7,6 +7,7 @@ whitenoise==6.6.0
 psycopg2-binary==2.9.9
 dj-database-url==2.1.0
 finnhub-python==2.4.19
+tiingo>=0.16.0
 requests==2.31.0
 yfinance==0.2.66
 praw==7.8.1

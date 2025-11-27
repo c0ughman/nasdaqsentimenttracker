@@ -417,7 +417,7 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
         
         # 1. UPDATE NEWS: Apply decay
         news_updated = apply_news_decay(base['news'])
-        
+
         # Check for newly scored articles (from Finnhub thread)
         try:
             from api.management.commands.finnhub_realtime_v2 import get_scored_articles
@@ -428,8 +428,20 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
         except ImportError:
             logger.debug("Finnhub integration not available")
         except Exception as e:
-            logger.error(f"Error getting scored articles: {e}")
-        
+            logger.error(f"Error getting Finnhub scored articles: {e}")
+
+        # Check for newly scored articles (from Tiingo thread)
+        try:
+            from api.management.commands.tiingo_realtime_news import get_scored_articles as get_tiingo_scored_articles
+            tiingo_impacts = get_tiingo_scored_articles()
+            for article_impact in tiingo_impacts:
+                news_updated += article_impact
+                logger.info(f"Applied Tiingo article impact: {article_impact:+.2f}")
+        except ImportError:
+            logger.debug("Tiingo integration not available")
+        except Exception as e:
+            logger.error(f"Error getting Tiingo scored articles: {e}")
+
         # Clip news to range
         news_updated = float(np.clip(news_updated, -100, 100))
         
