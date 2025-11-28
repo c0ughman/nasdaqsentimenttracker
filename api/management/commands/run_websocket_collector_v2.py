@@ -675,7 +675,9 @@ class Command(BaseCommand):
         """Run every 5 seconds to fetch Tiingo news (non-blocking)"""
         self.stdout.write(self.style.SUCCESS('📰 Tiingo news loop started'))
 
-        while self.running and self.ws and self.ws.sock and self.ws.sock.connected:
+        # Tiingo loop runs independently of WebSocket state
+        # Only check self.running flag (set to False when collector shuts down)
+        while self.running:
             try:
                 from api.management.commands.tiingo_realtime_news import query_tiingo_for_news
 
