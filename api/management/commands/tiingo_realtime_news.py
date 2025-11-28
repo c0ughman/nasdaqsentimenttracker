@@ -117,12 +117,13 @@ def get_tiingo_client():
             return None
 
         if _tiingo_client is None:
+            logger.info(f"🔧 Initializing Tiingo client with API key: {TIINGO_API_KEY[:10]}...")
             config = {
                 'api_key': TIINGO_API_KEY,
                 'session': True  # Reuse HTTP session for performance
             }
             _tiingo_client = TiingoClient(config)
-            logger.info("Tiingo client initialized successfully")
+            logger.info("✅ Tiingo client initialized successfully")
 
         return _tiingo_client
 
@@ -255,6 +256,8 @@ def scoring_worker():
             except queue.Empty:
                 continue
 
+            logger.info(f"   🤖 Scoring article: [{article_data['symbol']}] {article_data['headline'][:60]}...")
+
             # Score the article
             impact = score_article_with_ai(
                 article_data['headline'],
@@ -268,7 +271,7 @@ def scoring_worker():
             # Mark as processed
             mark_article_processed(article_data['url'])
 
-            logger.info(f"Tiingo article scored: {article_data['symbol']} impact={impact:+.2f}")
+            logger.info(f"   ✅ SCORED: [{article_data['symbol']}] impact={impact:+.2f} | {article_data['headline'][:50]}...")
 
         except Exception as e:
             logger.error(f"Error in Tiingo scoring worker: {e}", exc_info=True)
@@ -363,13 +366,16 @@ def query_tiingo_for_news():
         start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%S')
         end_date_str = now.strftime('%Y-%m-%dT%H:%M:%S')
 
-        logger.info(f"Querying Tiingo for news from {start_date_str} to {end_date_str}")
+        logger.info(f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}")
+        logger.info(f"   Time window: {(now - start_time).total_seconds():.1f} seconds")
 
         total_articles_found = 0
         queued_count = 0
 
         # Query 1: Top tickers (specific company news)
         try:
+            logger.info(f"   → Querying {len(TOP_TICKERS)} tickers: {', '.join(TOP_TICKERS[:5])}... (limit=1000)")
+
             # Tiingo get_news expects tickers as list, not string
             news_data = client.get_news(
                 tickers=TOP_TICKERS,  # Already a list
@@ -381,17 +387,21 @@ def query_tiingo_for_news():
             if news_data and isinstance(news_data, list):
                 total_articles_found += len(news_data)
                 queued_count += process_news_articles(news_data, 'ticker_query')
-                logger.info(f"Tiingo ticker query returned {len(news_data)} articles")
+                logger.info(f"   ✓ Ticker query: {len(news_data)} articles found, {queued_count} new articles queued")
+                if len(news_data) > 0:
+                    logger.info(f"      Sample: {news_data[0].get('title', 'N/A')[:80]}...")
             else:
-                logger.debug("Tiingo ticker query returned no articles")
+                logger.info(f"   ✓ Ticker query: No articles returned")
 
         except Exception as e:
-            logger.error(f"Error querying Tiingo for tickers: {e}", exc_info=True)
+            logger.error(f"   ✗ Ticker query FAILED: {e}", exc_info=True)
             # Continue even if ticker query fails
 
         # Query 2: General market keywords (broad NASDAQ news)
         # Query QQQ separately as it represents NASDAQ-100
         try:
+            logger.info(f"   → Querying QQQ market news (limit=50)")
+
             # Query QQQ (NASDAQ-100 ETF) for general market news
             market_news = client.get_news(
                 tickers=['QQQ'],  # NASDAQ-100 ETF as proxy for market news
@@ -400,22 +410,26 @@ def query_tiingo_for_news():
                 limit=50  # Smaller limit for general news
             )
 
+            market_queued = 0
             if market_news and isinstance(market_news, list):
                 total_articles_found += len(market_news)
-                queued_count += process_news_articles(market_news, 'market_query')
-                logger.info(f"Tiingo market query (QQQ) returned {len(market_news)} articles")
+                market_queued = process_news_articles(market_news, 'market_query')
+                queued_count += market_queued
+                logger.info(f"   ✓ Market query: {len(market_news)} articles found, {market_queued} new articles queued")
+                if len(market_news) > 0:
+                    logger.info(f"      Sample: {market_news[0].get('title', 'N/A')[:80]}...")
             else:
-                logger.debug("Tiingo market query returned no articles")
+                logger.info(f"   ✓ Market query: No articles returned")
 
         except Exception as e:
             # Market query failure is non-critical - we still have ticker data
-            logger.debug(f"Tiingo market query failed (non-critical): {e}")
+            logger.warning(f"   ✗ Market query failed (non-critical): {e}")
 
         # Update state
         _last_query_time = now
         _query_count += 1
 
-        logger.info(f"Tiingo query #{_query_count}: {total_articles_found} articles, {queued_count} queued for scoring")
+        logger.info(f"📰 TIINGO QUERY #{_query_count} COMPLETE: {total_articles_found} total, {queued_count} queued for scoring")
 
         return {
             'articles_found': total_articles_found,
@@ -500,10 +514,10 @@ def process_news_articles(articles, query_type):
                 try:
                     article_to_score_queue.put_nowait(article_data)
                     queued_count += 1
-                    logger.debug(f"Queued {primary_ticker} article: {title[:60]}...")
+                    logger.info(f"      📝 Queued: [{primary_ticker}] {title[:70]}...")
 
                 except queue.Full:
-                    logger.warning(f"Tiingo article queue full, skipping article (system under load)")
+                    logger.warning(f"      ⚠️  Queue FULL (100 items), skipping remaining articles")
                     break  # Stop processing if queue is full
 
             except Exception as e:
@@ -536,6 +550,10 @@ def get_scored_articles():
         while not scored_article_queue.empty():
             impact = scored_article_queue.get_nowait()
             impacts.append(impact)
+
+        if len(impacts) > 0:
+            total_impact = sum(impacts)
+            logger.info(f"   💰 Consuming {len(impacts)} Tiingo impacts: Total={total_impact:+.2f}")
 
     except queue.Empty:
         pass
