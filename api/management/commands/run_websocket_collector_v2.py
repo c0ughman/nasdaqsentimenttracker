@@ -691,17 +691,18 @@ class Command(BaseCommand):
                         f'(found {tiingo_result.get("articles_found", 0)} total)'
                     ))
                 elif tiingo_result.get('error'):
-                    if self.verbose:
-                        self.stdout.write(self.style.WARNING(f'Tiingo query error: {tiingo_result.get("error")}'))
+                    # ALWAYS log errors (not just in verbose mode)
+                    self.stdout.write(self.style.ERROR(f'❌ Tiingo query error: {tiingo_result.get("error")}'))
                 elif tiingo_result.get('reason') == 'disabled':
                     # Tiingo is disabled, stop the loop
                     self.stdout.write(self.style.NOTICE('📰 Tiingo disabled, stopping loop'))
                     break
 
             except Exception as e:
-                # Comprehensive error catching - failures must not affect SecondSnapshot generation
-                if self.verbose:
-                    self.stdout.write(self.style.ERROR(f'❌ Tiingo news loop error: {e}'))
+                # ALWAYS log errors - this is critical for diagnosing issues
+                self.stdout.write(self.style.ERROR(f'❌ Tiingo news loop exception: {e}'))
+                import traceback
+                self.stdout.write(self.style.ERROR(f'   Traceback: {traceback.format_exc()}'))
                 # Continue running even on errors
 
             # Sleep 5 seconds (Tiingo polling interval)
