@@ -1,17 +1,23 @@
 # 📊 Tiingo Integration - Logging Guide
 
 **Last Updated:** November 28, 2025
-**Commits:** dec4779, fef79e7
+**Commits:** dec4779, fef79e7, 008fbca, c285943
 
 ---
 
-## 🐛 Issue Fixed
+## 🐛 Issues Fixed
 
+### Issue 1: Tiingo loop stopping when WebSocket disconnects (dec4779)
 **Problem:** Tiingo loop was stopping and restarting repeatedly
 **Root Cause:** The loop condition was checking `self.ws.sock.connected`, which caused it to stop when the WebSocket temporarily disconnected/reconnected
 **Fix:** Changed loop condition from `while self.running and self.ws and self.ws.sock and self.ws.sock.connected` to `while self.running`
-
 **Result:** Tiingo now runs independently of WebSocket state and won't stop unless the entire collector shuts down.
+
+### Issue 2: Django logger not outputting to Railway logs (c285943)
+**Problem:** ALL Tiingo logs were invisible in Railway despite code running
+**Root Cause:** All logs used `logger.info()` and `logger.error()`, but Django's logger was not configured to output to Railway's stdout
+**Fix:** Added `print()` statements alongside all `logger` calls to ensure messages appear in Railway console
+**Result:** All Tiingo initialization, queries, results, and errors now visible in Railway logs!
 
 ---
 
@@ -301,4 +307,8 @@ print(stats)
 ---
 
 *Updated: November 28, 2025*
-*Commits: dec4779 (loop fix), fef79e7 (enhanced logging)*
+*Commits:*
+*- dec4779: Fixed loop condition (independent of WebSocket)*
+*- fef79e7: Enhanced logging detail*
+*- 008fbca: Made error logs always visible*
+*- c285943: Added print() statements for Railway visibility (CRITICAL FIX)*
