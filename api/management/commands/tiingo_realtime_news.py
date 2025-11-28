@@ -105,30 +105,44 @@ def get_tiingo_client():
 
     try:
         if not ENABLE_TIINGO_NEWS:
-            logger.debug("Tiingo news integration is disabled (ENABLE_TIINGO_NEWS=False)")
+            msg = "Tiingo news integration is disabled (ENABLE_TIINGO_NEWS=False)"
+            logger.debug(msg)
+            print(f"⚠️  {msg}")  # Ensure appears in Railway logs
             return None
 
         if not TIINGO_AVAILABLE:
-            logger.error("Tiingo library not available - install with: pip install tiingo")
+            msg = "Tiingo library not available - install with: pip install tiingo"
+            logger.error(msg)
+            print(f"❌ {msg}")  # Ensure appears in Railway logs
             return None
 
         if not TIINGO_API_KEY:
-            logger.error("TIINGO_API_KEY not set in environment")
+            msg = "TIINGO_API_KEY not set in environment"
+            logger.error(msg)
+            print(f"❌ {msg}")  # Ensure appears in Railway logs
             return None
 
         if _tiingo_client is None:
-            logger.info(f"🔧 Initializing Tiingo client with API key: {TIINGO_API_KEY[:10]}...")
+            msg = f"🔧 Initializing Tiingo client with API key: {TIINGO_API_KEY[:10]}..."
+            logger.info(msg)
+            print(msg)  # Ensure appears in Railway logs
             config = {
                 'api_key': TIINGO_API_KEY,
                 'session': True  # Reuse HTTP session for performance
             }
             _tiingo_client = TiingoClient(config)
-            logger.info("✅ Tiingo client initialized successfully")
+            msg = "✅ Tiingo client initialized successfully"
+            logger.info(msg)
+            print(msg)  # Ensure appears in Railway logs
 
         return _tiingo_client
 
     except Exception as e:
-        logger.error(f"Error initializing Tiingo client: {e}", exc_info=True)
+        msg = f"Error initializing Tiingo client: {e}"
+        logger.error(msg, exc_info=True)
+        print(f"❌ {msg}")  # Ensure appears in Railway logs
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return None
 
 
@@ -366,15 +380,21 @@ def query_tiingo_for_news():
         start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%S')
         end_date_str = now.strftime('%Y-%m-%dT%H:%M:%S')
 
-        logger.info(f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}")
-        logger.info(f"   Time window: {(now - start_time).total_seconds():.1f} seconds")
+        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}"
+        msg2 = f"   Time window: {(now - start_time).total_seconds():.1f} seconds"
+        logger.info(msg1)
+        logger.info(msg2)
+        print(msg1)  # Ensure appears in Railway logs
+        print(msg2)  # Ensure appears in Railway logs
 
         total_articles_found = 0
         queued_count = 0
 
         # Query 1: Top tickers (specific company news)
         try:
-            logger.info(f"   → Querying {len(TOP_TICKERS)} tickers: {', '.join(TOP_TICKERS[:5])}... (limit=1000)")
+            msg = f"   → Querying {len(TOP_TICKERS)} tickers: {', '.join(TOP_TICKERS[:5])}... (limit=1000)"
+            logger.info(msg)
+            print(msg)  # Ensure appears in Railway logs
 
             # Tiingo get_news expects tickers as list, not string
             news_data = client.get_news(
@@ -387,20 +407,32 @@ def query_tiingo_for_news():
             if news_data and isinstance(news_data, list):
                 total_articles_found += len(news_data)
                 queued_count += process_news_articles(news_data, 'ticker_query')
-                logger.info(f"   ✓ Ticker query: {len(news_data)} articles found, {queued_count} new articles queued")
+                msg = f"   ✓ Ticker query: {len(news_data)} articles found, {queued_count} new articles queued"
+                logger.info(msg)
+                print(msg)  # Ensure appears in Railway logs
                 if len(news_data) > 0:
-                    logger.info(f"      Sample: {news_data[0].get('title', 'N/A')[:80]}...")
+                    msg = f"      Sample: {news_data[0].get('title', 'N/A')[:80]}..."
+                    logger.info(msg)
+                    print(msg)  # Ensure appears in Railway logs
             else:
-                logger.info(f"   ✓ Ticker query: No articles returned")
+                msg = f"   ✓ Ticker query: No articles returned"
+                logger.info(msg)
+                print(msg)  # Ensure appears in Railway logs
 
         except Exception as e:
-            logger.error(f"   ✗ Ticker query FAILED: {e}", exc_info=True)
+            msg = f"   ✗ Ticker query FAILED: {e}"
+            logger.error(msg, exc_info=True)
+            print(f"❌ {msg}")  # Ensure appears in Railway logs
+            import traceback
+            print(f"   Traceback: {traceback.format_exc()}")
             # Continue even if ticker query fails
 
         # Query 2: General market keywords (broad NASDAQ news)
         # Query QQQ separately as it represents NASDAQ-100
         try:
-            logger.info(f"   → Querying QQQ market news (limit=50)")
+            msg = f"   → Querying QQQ market news (limit=50)"
+            logger.info(msg)
+            print(msg)  # Ensure appears in Railway logs
 
             # Query QQQ (NASDAQ-100 ETF) for general market news
             market_news = client.get_news(
@@ -415,21 +447,31 @@ def query_tiingo_for_news():
                 total_articles_found += len(market_news)
                 market_queued = process_news_articles(market_news, 'market_query')
                 queued_count += market_queued
-                logger.info(f"   ✓ Market query: {len(market_news)} articles found, {market_queued} new articles queued")
+                msg = f"   ✓ Market query: {len(market_news)} articles found, {market_queued} new articles queued"
+                logger.info(msg)
+                print(msg)  # Ensure appears in Railway logs
                 if len(market_news) > 0:
-                    logger.info(f"      Sample: {market_news[0].get('title', 'N/A')[:80]}...")
+                    msg = f"      Sample: {market_news[0].get('title', 'N/A')[:80]}..."
+                    logger.info(msg)
+                    print(msg)  # Ensure appears in Railway logs
             else:
-                logger.info(f"   ✓ Market query: No articles returned")
+                msg = f"   ✓ Market query: No articles returned"
+                logger.info(msg)
+                print(msg)  # Ensure appears in Railway logs
 
         except Exception as e:
             # Market query failure is non-critical - we still have ticker data
-            logger.warning(f"   ✗ Market query failed (non-critical): {e}")
+            msg = f"   ✗ Market query failed (non-critical): {e}"
+            logger.warning(msg)
+            print(f"⚠️  {msg}")  # Ensure appears in Railway logs
 
         # Update state
         _last_query_time = now
         _query_count += 1
 
-        logger.info(f"📰 TIINGO QUERY #{_query_count} COMPLETE: {total_articles_found} total, {queued_count} queued for scoring")
+        msg = f"📰 TIINGO QUERY #{_query_count} COMPLETE: {total_articles_found} total, {queued_count} queued for scoring"
+        logger.info(msg)
+        print(msg)  # Ensure appears in Railway logs
 
         return {
             'articles_found': total_articles_found,
@@ -439,7 +481,11 @@ def query_tiingo_for_news():
         }
 
     except Exception as e:
-        logger.error(f"Error in Tiingo news query: {e}", exc_info=True)
+        msg = f"Error in Tiingo news query: {e}"
+        logger.error(msg, exc_info=True)
+        print(f"❌ {msg}")  # Ensure appears in Railway logs
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         return {
             'articles_found': 0,
             'queued_for_scoring': 0,
