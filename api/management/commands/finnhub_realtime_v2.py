@@ -409,6 +409,14 @@ def query_finnhub_for_news():
             _from=yesterday.strftime('%Y-%m-%d'),
             to=today.strftime('%Y-%m-%d')
         )
+
+        # Discovery-level logging for visibility into each API call
+        total_returned = len(articles) if isinstance(articles, list) else 0
+        logger.info(
+            f"FINNHUB QUERY: symbol={symbol}, "
+            f"from={yesterday.strftime('%Y-%m-%d')} to={today.strftime('%Y-%m-%d')}, "
+            f"articles_returned={total_returned}"
+        )
         
         if not articles:
             return {
@@ -449,7 +457,7 @@ def query_finnhub_for_news():
         }
     
     except Exception as e:
-        logger.error(f"Error querying Finnhub for {symbol}: {e}")
+        logger.error(f"Error querying Finnhub for {symbol}: {e}", exc_info=True)
         return {
             'symbol': symbol,
             'articles_found': 0,

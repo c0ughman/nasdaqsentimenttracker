@@ -416,15 +416,21 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
         base = get_base_scores(ticker_symbol)
         
         # 1. UPDATE NEWS: Apply decay
-        news_updated = apply_news_decay(base['news'])
+        news_decayed = apply_news_decay(base['news'])
+        news_updated = news_decayed
 
         # Check for newly scored articles (from Finnhub thread)
         try:
             from api.management.commands.finnhub_realtime_v2 import get_scored_articles
             impacts = get_scored_articles()
-            for article_impact in impacts:
-                news_updated += article_impact
-                logger.info(f"Applied Finnhub article impact: {article_impact:+.2f}")
+            if impacts:
+                total_impact = sum(impacts)
+                logger.info(
+                    f"FINNHUB_IMPACTS: count={len(impacts)}, total={total_impact:+.2f}"
+                )
+                for article_impact in impacts:
+                    news_updated += article_impact
+                    logger.info(f"Applied Finnhub article impact: {article_impact:+.2f}")
         except ImportError:
             logger.debug("Finnhub integration not available")
         except Exception as e:
@@ -434,16 +440,31 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
         try:
             from api.management.commands.tiingo_realtime_news import get_scored_articles as get_tiingo_scored_articles
             tiingo_impacts = get_tiingo_scored_articles()
-            for article_impact in tiingo_impacts:
-                news_updated += article_impact
-                logger.info(f"Applied Tiingo article impact: {article_impact:+.2f}")
+            if tiingo_impacts:
+                total_tiingo = sum(tiingo_impacts)
+                logger.info(
+                    f"TIINGO_IMPACTS: count={len(tiingo_impacts)}, total={total_tiingo:+.2f}"
+                )
+                for article_impact in tiingo_impacts:
+                    news_updated += article_impact
+                    logger.info(f"Applied Tiingo article impact: {article_impact:+.2f}")
         except ImportError:
             logger.debug("Tiingo integration not available")
         except Exception as e:
             logger.error(f"Error getting Tiingo scored articles: {e}")
 
         # Clip news to range
+        news_before_clip = news_updated
         news_updated = float(np.clip(news_updated, -100, 100))
+
+        # Log end-to-end news update details
+        logger.info(
+            "NEWS_UPDATE: "
+            f"base={base['news']:+.2f}, "
+            f"after_decay={news_decayed:+.2f}, "
+            f"after_impacts={news_before_clip:+.2f}, "
+            f"final_clipped={news_updated:+.2f}"
+        )
         
         # 2. UPDATE TECHNICAL: Blend base with micro momentum
         micro_momentum = calculate_micro_momentum(last_60_snapshots)
