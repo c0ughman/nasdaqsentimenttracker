@@ -487,6 +487,12 @@ def query_tiingo_for_news():
         # Determine time window (rolling window based on TIME_WINDOW_MINUTES)
         now = timezone.now()
         start_time = now - timedelta(minutes=TIME_WINDOW_MINUTES)
+        
+        # CRITICAL: For Tiingo News API, we need to query a broader date range
+        # The API uses date-only format and may have indexing delays
+        # Query last 7 days to ensure we get recent news
+        start_date_for_api = (now - timedelta(days=7)).date()
+        end_date_for_api = now.date()
 
         # Extra logging about the computed time window
         logger.info(
@@ -497,19 +503,17 @@ def query_tiingo_for_news():
             f"delta_sec={(now - start_time).total_seconds():.1f}"
         )
 
-        # Format dates for Tiingo API
-        # Use ISO 8601 datetime format (YYYY-MM-DDTHH:MM:SSZ) to respect time window
-        # Date-only format doesn't work for same-day queries (both dates become identical)
-        start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_date_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+        # Format dates for Tiingo API (date-only format required)
+        start_date_str = start_date_for_api.strftime('%Y-%m-%d')
+        end_date_str = end_date_for_api.strftime('%Y-%m-%d')
         
-        # Keep date-only for display/logging
-        start_date_display = start_time.strftime('%Y-%m-%d')
-        end_date_display = now.strftime('%Y-%m-%d')
+        # For display/logging, show the actual time window we want
+        start_datetime_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_datetime_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}"
-        msg2 = f"   Time window: {(now - start_time).total_seconds():.1f} seconds"
-        msg3 = f"   API params: startDate={start_date_str}, endDate={end_date_str} (ISO 8601 format)"
+        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Target window {start_datetime_str} to {end_datetime_str}"
+        msg2 = f"   API query: startDate={start_date_str}, endDate={end_date_str} (last 7 days)"
+        msg3 = f"   Note: Tiingo uses date-only format, we'll filter by publishedDate after retrieval"
         logger.info(msg1)
         logger.info(msg2)
         logger.info(msg3)
@@ -550,7 +554,7 @@ def query_tiingo_for_news():
 
             if news_data and isinstance(news_data, list):
                 total_articles_found += len(news_data)
-                queued_count += process_news_articles(news_data, 'ticker_query')
+                queued_count += process_news_articles(news_data, 'ticker_query', start_time, now)
                 msg = f"   ✓ Ticker query: {len(news_data)} articles found, {queued_count} new articles queued"
                 logger.info(msg)
                 print(msg)  # Ensure appears in Railway logs
@@ -592,7 +596,7 @@ def query_tiingo_for_news():
             market_queued = 0
             if market_news and isinstance(market_news, list):
                 total_articles_found += len(market_news)
-                market_queued = process_news_articles(market_news, 'market_query')
+                market_queued = process_news_articles(market_news, 'market_query', start_time, now)
                 queued_count += market_queued
                 msg = f"   ✓ Market query: {len(market_news)} articles found, {market_queued} new articles queued"
                 logger.info(msg)
@@ -643,21 +647,24 @@ def query_tiingo_for_news():
         }
 
 
-def process_news_articles(articles, query_type):
+def process_news_articles(articles, query_type, start_time=None, end_time=None):
     """
     Process a list of news articles from Tiingo.
 
-    Filters duplicates and queues new articles for scoring.
+    Filters duplicates, filters by time window, and queues new articles for scoring.
     Uses PRIMARY TICKER ONLY (first ticker in list).
 
     Args:
         articles: List of article dicts from Tiingo API
         query_type: 'ticker_query' or 'market_query' (for logging)
+        start_time: Optional datetime - filter articles published after this time
+        end_time: Optional datetime - filter articles published before this time
 
     Returns:
         int: Number of articles queued for scoring
     """
     queued_count = 0
+    filtered_by_time = 0
 
     try:
         if not articles:
@@ -682,6 +689,25 @@ def process_news_articles(articles, query_type):
                 if not url.startswith('http'):
                     logger.debug(f"Skipping article with invalid URL: {url[:50]}")
                     continue
+
+                # Filter by time window if provided
+                if start_time and end_time:
+                    published_date_str = article.get('publishedDate', '')
+                    if published_date_str:
+                        try:
+                            from django.utils.dateparse import parse_datetime
+                            published_at = parse_datetime(published_date_str)
+                            if published_at:
+                                # Make timezone-aware if naive
+                                if timezone.is_naive(published_at):
+                                    published_at = published_at.replace(tzinfo=dt_timezone.utc)
+                                
+                                # Filter: only include articles within our time window
+                                if published_at < start_time or published_at > end_time:
+                                    filtered_by_time += 1
+                                    continue
+                        except Exception as e:
+                            logger.debug(f"Error parsing publishedDate '{published_date_str}': {e}")
 
                 # Skip if already processed
                 if is_article_processed(url):
@@ -725,7 +751,7 @@ def process_news_articles(articles, query_type):
         # Summary logging for this batch
         logger.info(
             f"Processed Tiingo articles batch: type={query_type}, "
-            f"input_count={total_input}, queued={queued_count}"
+            f"input_count={total_input}, filtered_by_time={filtered_by_time}, queued={queued_count}"
         )
         return queued_count
 
