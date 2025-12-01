@@ -190,6 +190,99 @@ def mark_article_processed(article_url):
 
 
 # ============================================================================
+# DATABASE SAVING
+# ============================================================================
+
+def save_article_to_db(article_data, impact):
+    """
+    Save article to NewsArticle database table.
+
+    Args:
+        article_data: Dict with article info (headline, summary, url, symbol, published, source)
+        impact: Calculated sentiment impact
+    """
+    try:
+        from api.models import NewsArticle, Ticker
+        from django.utils.dateparse import parse_datetime
+        from django.utils import timezone
+
+        # Get or create ticker
+        ticker_symbol = article_data['symbol']
+        try:
+            ticker = Ticker.objects.get(symbol=ticker_symbol)
+        except Ticker.DoesNotExist:
+            # For 'MARKET' or unknown tickers, use QLD (NASDAQ composite)
+            logger.warning(f"Ticker {ticker_symbol} not found in database, using QLD as fallback")
+            try:
+                ticker = Ticker.objects.get(symbol='QLD')
+            except Ticker.DoesNotExist:
+                logger.error("QLD ticker not found in database - cannot save article")
+                return None
+
+        # Parse published date
+        published_at = None
+        if article_data.get('published'):
+            try:
+                published_str = article_data['published']
+                published_at = parse_datetime(published_str)
+            except Exception as e:
+                logger.warning(f"Error parsing published date '{published_str}': {e}")
+
+        if not published_at:
+            published_at = timezone.now()  # Fallback to current time
+
+        # Generate article hash
+        article_hash = get_article_hash(article_data['url'])
+        if not article_hash:
+            logger.error(f"Could not generate hash for article URL: {article_data.get('url', 'N/A')}")
+            return None
+
+        # Calculate sentiment from impact (reverse the scaling)
+        weight = MARKET_CAP_WEIGHTS.get(ticker_symbol, 0.01)
+        estimated_sentiment = impact / (weight * 100 * 100)
+        estimated_sentiment = max(-1.0, min(1.0, estimated_sentiment))  # Clip to -1/+1
+
+        # Determine article type
+        article_type = 'market' if ticker_symbol == 'MARKET' else 'company'
+
+        # Save to database (update_or_create prevents duplicates)
+        article, created = NewsArticle.objects.update_or_create(
+            article_hash=article_hash,
+            defaults={
+                'ticker': ticker,
+                'analysis_run': None,  # Real-time articles don't have analysis_run
+                'headline': article_data.get('headline', '')[:500],  # Truncate if too long
+                'summary': article_data.get('summary', '')[:2000],
+                'source': f"Tiingo (Real-Time) - {article_data.get('source', 'unknown')}",
+                'url': article_data.get('url', ''),
+                'published_at': published_at,
+                'article_type': article_type,
+                'base_sentiment': estimated_sentiment,
+                'surprise_factor': 1.0,  # Real-time scoring doesn't calculate these
+                'novelty_score': 1.0,
+                'source_credibility': 0.8,  # Tiingo is credible
+                'recency_weight': 1.0,
+                'article_score': impact,  # Use the calculated impact
+                'weighted_contribution': impact,
+                'is_analyzed': True,
+                'sentiment_cached': False  # Real-time articles are fresh
+            }
+        )
+
+        if created:
+            logger.info(f"✓ Saved new Tiingo article to database: {article_hash[:8]} [{ticker_symbol}]")
+        else:
+            logger.debug(f"✓ Updated existing Tiingo article: {article_hash[:8]} [{ticker_symbol}]")
+
+        return article
+
+    except Exception as e:
+        logger.error(f"Error saving Tiingo article to database: {e}", exc_info=True)
+        # Don't raise - we don't want to break sentiment calculation if DB save fails
+        return None
+
+
+# ============================================================================
 # ARTICLE SCORING (reuses existing code from Finnhub)
 # ============================================================================
 
@@ -278,6 +371,13 @@ def scoring_worker():
                 article_data['summary'],
                 article_data['symbol']
             )
+
+            # Save article to database (NEW)
+            try:
+                save_article_to_db(article_data, impact)
+            except Exception as e:
+                logger.error(f"Error saving Tiingo article to database: {e}", exc_info=True)
+                # Continue even if save fails - don't break sentiment calculation
 
             # Put result in scored queue
             scored_article_queue.put(impact)

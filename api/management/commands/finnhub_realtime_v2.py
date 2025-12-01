@@ -124,6 +124,94 @@ def mark_article_processed(article_url):
 
 
 # ============================================================================
+# DATABASE SAVING
+# ============================================================================
+
+def save_article_to_db(article_data, impact):
+    """
+    Save article to NewsArticle database table.
+
+    Args:
+        article_data: Dict with article info (headline, summary, url, symbol, published)
+        impact: Calculated sentiment impact
+    """
+    try:
+        from api.models import NewsArticle, Ticker
+        from django.utils.dateparse import parse_datetime
+        from django.utils import timezone
+
+        # Get or create ticker
+        ticker_symbol = article_data['symbol']
+        try:
+            ticker = Ticker.objects.get(symbol=ticker_symbol)
+        except Ticker.DoesNotExist:
+            logger.warning(f"Ticker {ticker_symbol} not found in database, using QLD as fallback")
+            ticker = Ticker.objects.get(symbol='QLD')  # Fallback to NASDAQ composite
+
+        # Parse published date
+        published_at = None
+        if article_data.get('published'):
+            try:
+                # Finnhub provides Unix timestamp
+                published_timestamp = article_data['published']
+                if isinstance(published_timestamp, (int, float)):
+                    published_at = timezone.datetime.fromtimestamp(published_timestamp, tz=timezone.utc)
+                else:
+                    published_at = parse_datetime(str(published_timestamp))
+            except Exception as e:
+                logger.warning(f"Error parsing published date: {e}")
+
+        if not published_at:
+            published_at = timezone.now()  # Fallback to current time
+
+        # Generate article hash (same method as run_nasdaq_sentiment.py)
+        article_hash = get_article_hash(article_data['url'])
+
+        # Calculate sentiment from impact (reverse the scaling)
+        # impact is capped at ±25, and comes from: sentiment * 100 * weight * 100
+        # For simplicity, estimate base_sentiment from impact
+        weight = MARKET_CAP_WEIGHTS.get(ticker_symbol, 0.01)
+        estimated_sentiment = impact / (weight * 100 * 100)
+        estimated_sentiment = max(-1.0, min(1.0, estimated_sentiment))  # Clip to -1/+1
+
+        # Save to database (update_or_create prevents duplicates)
+        article, created = NewsArticle.objects.update_or_create(
+            article_hash=article_hash,
+            defaults={
+                'ticker': ticker,
+                'analysis_run': None,  # Real-time articles don't have analysis_run
+                'headline': article_data.get('headline', '')[:500],  # Truncate if too long
+                'summary': article_data.get('summary', '')[:2000],
+                'source': 'Finnhub (Real-Time)',
+                'url': article_data.get('url', ''),
+                'published_at': published_at,
+                'article_type': 'company',
+                'base_sentiment': estimated_sentiment,
+                'surprise_factor': 1.0,  # Real-time scoring doesn't calculate these
+                'novelty_score': 1.0,
+                'source_credibility': 0.8,  # Finnhub is credible
+                'recency_weight': 1.0,
+                'article_score': impact,  # Use the calculated impact
+                'weighted_contribution': impact,
+                'is_analyzed': True,
+                'sentiment_cached': False  # Real-time articles are fresh
+            }
+        )
+
+        if created:
+            logger.info(f"✓ Saved new article to database: {article_hash[:8]} [{ticker_symbol}]")
+        else:
+            logger.debug(f"✓ Updated existing article: {article_hash[:8]} [{ticker_symbol}]")
+
+        return article
+
+    except Exception as e:
+        logger.error(f"Error saving article to database: {e}", exc_info=True)
+        # Don't raise - we don't want to break sentiment calculation if DB save fails
+        return None
+
+
+# ============================================================================
 # ARTICLE SCORING (matches run_nasdaq_sentiment.py exactly)
 # ============================================================================
 
@@ -193,9 +281,9 @@ def scoring_worker():
     This prevents blocking the WebSocket collector.
     """
     global _scoring_thread_running
-    
+
     logger.info("Article scoring thread started")
-    
+
     while _scoring_thread_running:
         try:
             # Get article from queue (block for up to 1 second)
@@ -203,25 +291,32 @@ def scoring_worker():
                 article_data = article_to_score_queue.get(timeout=1.0)
             except queue.Empty:
                 continue
-            
+
             # Score the article
             impact = score_article_with_ai(
                 article_data['headline'],
                 article_data['summary'],
                 article_data['symbol']
             )
-            
+
+            # Save article to database (NEW)
+            try:
+                save_article_to_db(article_data, impact)
+            except Exception as e:
+                logger.error(f"Error saving article to database: {e}", exc_info=True)
+                # Continue even if save fails - don't break sentiment calculation
+
             # Put result in scored queue
             scored_article_queue.put(impact)
-            
+
             # Mark as processed
             mark_article_processed(article_data['url'])
-            
+
             logger.info(f"Article scored and queued: {article_data['symbol']} impact={impact:+.2f}")
-            
+
         except Exception as e:
             logger.error(f"Error in scoring worker: {e}", exc_info=True)
-    
+
     logger.info("Article scoring thread stopped")
 
 
