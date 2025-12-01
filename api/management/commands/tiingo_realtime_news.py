@@ -488,11 +488,10 @@ def query_tiingo_for_news():
         now = timezone.now()
         start_time = now - timedelta(minutes=TIME_WINDOW_MINUTES)
         
-        # CRITICAL: For Tiingo News API, we need to query a broader date range
-        # The API uses date-only format and may have indexing delays
-        # Query last 7 days to ensure we get recent news
-        start_date_for_api = (now - timedelta(days=7)).date()
-        end_date_for_api = now.date()
+        # For Tiingo News API: Query last 2 days to handle timezone/indexing issues
+        # API uses date-only format, so we query a bit broader then filter by publishedDate
+        start_date_for_api = (now - timedelta(days=1)).date()  # Yesterday
+        end_date_for_api = now.date()  # Today
 
         # Extra logging about the computed time window
         logger.info(
@@ -512,8 +511,8 @@ def query_tiingo_for_news():
         end_datetime_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Target window {start_datetime_str} to {end_datetime_str}"
-        msg2 = f"   API query: startDate={start_date_str}, endDate={end_date_str} (last 7 days)"
-        msg3 = f"   Note: Tiingo uses date-only format, we'll filter by publishedDate after retrieval"
+        msg2 = f"   API query: NO date parameters (getting latest news)"
+        msg3 = f"   Will filter by publishedDate to get articles in target window"
         logger.info(msg1)
         logger.info(msg2)
         logger.info(msg3)
@@ -534,14 +533,12 @@ def query_tiingo_for_news():
             # DEBUG: Log the exact parameters being sent
             logger.info(f"   DEBUG: Calling client.get_news with:")
             logger.info(f"      tickers={TOP_TICKERS}")
-            logger.info(f"      startDate={start_date_str}")
-            logger.info(f"      endDate={end_date_str}")
             logger.info(f"      limit=1000")
+            logger.info(f"      (NO date parameters - getting latest news)")
             
+            # Try WITHOUT date parameters to get latest news
             news_data = client.get_news(
                 tickers=TOP_TICKERS,  # Already a list
-                startDate=start_date_str,
-                endDate=end_date_str,
                 limit=1000  # Get as many as possible (Tiingo paid plan)
             )
             
@@ -588,8 +585,6 @@ def query_tiingo_for_news():
             # Query QQQ (NASDAQ-100 ETF) for general market news
             market_news = client.get_news(
                 tickers=['QQQ'],  # NASDAQ-100 ETF as proxy for market news
-                startDate=start_date_str,
-                endDate=end_date_str,
                 limit=50  # Smaller limit for general news
             )
 
