@@ -51,12 +51,14 @@ TOP_TICKERS = [
     'LRCX', 'PANW', 'MU', 'PYPL', 'SNPS', 'KLAC', 'CDNS', 'MELI'
 ]
 
-# General market keywords for broad NASDAQ news
-MARKET_KEYWORDS = [
-    'NASDAQ', 'Nasdaq', 'nasdaq',  # NASDAQ general
-    'QQQ',  # NASDAQ-100 ETF
-    'tech stocks', 'technology sector',  # Tech market
-    'market',  # General market
+# Major market indices and ETFs for broad market news
+MARKET_INDICES = [
+    'QQQ',   # NASDAQ-100 ETF
+    'SPY',   # S&P 500 ETF
+    'DIA',   # Dow Jones Industrial Average ETF
+    'IWM',   # Russell 2000 ETF (small caps)
+    'VTI',   # Total Stock Market ETF
+    'VOO',   # Vanguard S&P 500 ETF
 ]
 
 # Market cap weights (same as Finnhub for consistency)
@@ -575,17 +577,16 @@ def query_tiingo_for_news():
             print(f"   Traceback: {traceback.format_exc()}")
             # Continue even if ticker query fails
 
-        # Query 2: General market keywords (broad NASDAQ news)
-        # Query QQQ separately as it represents NASDAQ-100
+        # Query 2: Major market indices (QQQ, SPY, DIA, etc.)
         try:
-            msg = f"   → Querying QQQ market news (limit=50)"
+            msg = f"   → Querying {len(MARKET_INDICES)} market indices: {', '.join(MARKET_INDICES)} (limit=1000)"
             logger.info(msg)
             print(msg)  # Ensure appears in Railway logs
 
-            # Query QQQ (NASDAQ-100 ETF) for general market news
+            # Query all major market indices for broad market news
             market_news = client.get_news(
-                tickers=['QQQ'],  # NASDAQ-100 ETF as proxy for market news
-                limit=50  # Smaller limit for general news
+                tickers=MARKET_INDICES,  # All major market ETFs
+                limit=1000  # Maximum articles for market news
             )
 
             market_queued = 0
