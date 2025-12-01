@@ -537,8 +537,7 @@ def query_tiingo_for_news():
                 tickers=TOP_TICKERS,  # Already a list
                 startDate=start_date_str,
                 endDate=end_date_str,
-                limit=1000,  # Get as many as possible (Tiingo paid plan)
-                source=None  # Try without source filter
+                limit=1000  # Get as many as possible (Tiingo paid plan)
             )
             
             # DEBUG: Log the response
