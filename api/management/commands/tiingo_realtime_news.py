@@ -70,7 +70,7 @@ MARKET_CAP_WEIGHTS.update({
 
 # Query timing
 POLL_INTERVAL = 5  # Poll Tiingo every 5 seconds
-TIME_WINDOW_MINUTES = 15  # Fallback: last 15 minutes
+TIME_WINDOW_MINUTES = 60  # Rolling window: last 60 minutes of news
 
 # State tracking
 _last_query_time = None
@@ -460,25 +460,38 @@ def query_tiingo_for_news():
         # Get Tiingo client
         client = get_tiingo_client()
         if not client:
+            # Extra logging so we always know why the client is unavailable
+            msg = (
+                "Tiingo client unavailable. "
+                f"ENABLE_TIINGO_NEWS={ENABLE_TIINGO_NEWS}, "
+                f"TIINGO_AVAILABLE={TIINGO_AVAILABLE}, "
+                f"has_api_key={bool(TIINGO_API_KEY)}"
+            )
+            logger.error(msg)
+            print(f"❌ {msg}")  # Ensure appears in Railway logs
+
             return {
                 'articles_found': 0,
                 'queued_for_scoring': 0,
                 'error': 'client_unavailable'
             }
 
-        # Determine time window (since last query, or last 15 minutes)
+        # Determine time window (rolling window based on TIME_WINDOW_MINUTES)
         now = timezone.now()
-        if _last_query_time:
-            start_time = _last_query_time
-            # Fallback to 15 minutes if gap is too large
-            if (now - start_time).total_seconds() > 900:  # 15 minutes
-                start_time = now - timedelta(minutes=TIME_WINDOW_MINUTES)
-        else:
-            start_time = now - timedelta(minutes=TIME_WINDOW_MINUTES)
+        start_time = now - timedelta(minutes=TIME_WINDOW_MINUTES)
 
-        # Format dates for Tiingo API (ISO 8601)
-        start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%S')
-        end_date_str = now.strftime('%Y-%m-%dT%H:%M:%S')
+        # Extra logging about the computed time window
+        logger.info(
+            "Tiingo query window: "
+            f"minutes={TIME_WINDOW_MINUTES}, "
+            f"start={start_time.isoformat()}, "
+            f"end={now.isoformat()}, "
+            f"delta_sec={(now - start_time).total_seconds():.1f}"
+        )
+
+        # Format dates for Tiingo API (ISO 8601, explicit UTC)
+        start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_date_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}"
         msg2 = f"   Time window: {(now - start_time).total_seconds():.1f} seconds"
@@ -515,7 +528,10 @@ def query_tiingo_for_news():
                     logger.info(msg)
                     print(msg)  # Ensure appears in Railway logs
             else:
-                msg = f"   ✓ Ticker query: No articles returned"
+                msg = (
+                    f"   ✓ Ticker query: No articles returned "
+                    f"(raw_type={type(news_data).__name__})"
+                )
                 logger.info(msg)
                 print(msg)  # Ensure appears in Railway logs
 
@@ -555,7 +571,10 @@ def query_tiingo_for_news():
                     logger.info(msg)
                     print(msg)  # Ensure appears in Railway logs
             else:
-                msg = f"   ✓ Market query: No articles returned"
+                msg = (
+                    f"   ✓ Market query: No articles returned "
+                    f"(raw_type={type(market_news).__name__})"
+                )
                 logger.info(msg)
                 print(msg)  # Ensure appears in Railway logs
 
@@ -612,6 +631,8 @@ def process_news_articles(articles, query_type):
     try:
         if not articles:
             return 0
+
+        total_input = len(articles)
 
         for article in articles:
             try:
@@ -670,6 +691,11 @@ def process_news_articles(articles, query_type):
                 logger.error(f"Error processing individual article: {e}")
                 continue
 
+        # Summary logging for this batch
+        logger.info(
+            f"Processed Tiingo articles batch: type={query_type}, "
+            f"input_count={total_input}, queued={queued_count}"
+        )
         return queued_count
 
     except Exception as e:
