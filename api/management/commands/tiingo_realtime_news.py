@@ -497,16 +497,24 @@ def query_tiingo_for_news():
             f"delta_sec={(now - start_time).total_seconds():.1f}"
         )
 
-        # Format dates for Tiingo API (ISO 8601, explicit UTC)
-        start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_date_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+        # Format dates for Tiingo API
+        # Try date-only format first (YYYY-MM-DD) as Tiingo might not support time
+        start_date_str = start_time.strftime('%Y-%m-%d')
+        end_date_str = now.strftime('%Y-%m-%d')
+        
+        # Also prepare ISO 8601 format as backup
+        start_datetime_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_datetime_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}"
+        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_datetime_str} to {end_datetime_str}"
         msg2 = f"   Time window: {(now - start_time).total_seconds():.1f} seconds"
+        msg3 = f"   API params: startDate={start_date_str}, endDate={end_date_str} (date-only format)"
         logger.info(msg1)
         logger.info(msg2)
+        logger.info(msg3)
         print(msg1)  # Ensure appears in Railway logs
         print(msg2)  # Ensure appears in Railway logs
+        print(msg3)  # Ensure appears in Railway logs
 
         total_articles_found = 0
         queued_count = 0
@@ -518,12 +526,27 @@ def query_tiingo_for_news():
             print(msg)  # Ensure appears in Railway logs
 
             # Tiingo get_news expects tickers as list, not string
+            # DEBUG: Log the exact parameters being sent
+            logger.info(f"   DEBUG: Calling client.get_news with:")
+            logger.info(f"      tickers={TOP_TICKERS}")
+            logger.info(f"      startDate={start_date_str}")
+            logger.info(f"      endDate={end_date_str}")
+            logger.info(f"      limit=1000")
+            
             news_data = client.get_news(
                 tickers=TOP_TICKERS,  # Already a list
                 startDate=start_date_str,
                 endDate=end_date_str,
-                limit=1000  # Get as many as possible (Tiingo paid plan)
+                limit=1000,  # Get as many as possible (Tiingo paid plan)
+                source=None  # Try without source filter
             )
+            
+            # DEBUG: Log the response
+            logger.info(f"   DEBUG: Response type: {type(news_data)}")
+            logger.info(f"   DEBUG: Response length: {len(news_data) if isinstance(news_data, list) else 'N/A'}")
+            if isinstance(news_data, list) and len(news_data) > 0:
+                logger.info(f"   DEBUG: First article keys: {list(news_data[0].keys())}")
+                logger.info(f"   DEBUG: First article: {news_data[0]}")
 
             if news_data and isinstance(news_data, list):
                 total_articles_found += len(news_data)
