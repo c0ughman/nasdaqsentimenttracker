@@ -13,7 +13,7 @@ import threading
 import queue
 import time
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -164,7 +164,7 @@ def save_article_to_db(article_data, impact):
                 # Finnhub provides Unix timestamp
                 published_timestamp = article_data['published']
                 if isinstance(published_timestamp, (int, float)):
-                    published_at = timezone.datetime.fromtimestamp(published_timestamp, tz=timezone.utc)
+                    published_at = datetime.fromtimestamp(published_timestamp, tz=dt_timezone.utc)
                 else:
                     published_at = parse_datetime(str(published_timestamp))
             except Exception as e:
