@@ -58,10 +58,19 @@ MARKET_CAP_WEIGHTS.update({
 WORK_SECONDS = 50  # Query for first 50 seconds of each minute
 REST_SECONDS = 10  # Rest for last 10 seconds
 
+# Rate limiting (Finnhub free tier: 60 calls/minute)
+# We'll be conservative and target 50 calls/minute with 1.2 second spacing
+MIN_SECONDS_BETWEEN_CALLS = 1.2  # Ensures we stay well under 60/minute (50 calls/minute)
+MAX_CALLS_PER_MINUTE = 50  # Conservative limit
+
 # Rotation state
 _current_index = 0
 _last_query_time = None
 _finnhub_client = None
+
+# Rate limit tracking
+_api_calls_this_minute = []  # List of timestamps for calls in current minute
+_consecutive_429_errors = 0  # Track consecutive rate limit errors
 
 # Article cache (prevent re-processing)
 ARTICLE_CACHE_KEY = 'finnhub_articles_processed'
@@ -362,7 +371,7 @@ def query_finnhub_for_news():
             'queued_for_scoring': int
         }
     """
-    global _current_index, _last_query_time
+    global _current_index, _last_query_time, _api_calls_this_minute, _consecutive_429_errors
     
     # Check if we're in rest period (last 10 seconds of minute)
     current_second = timezone.now().second
@@ -374,15 +383,48 @@ def query_finnhub_for_news():
             'reason': 'rest_period'
         }
     
-    # Rate limiting (safety)
+    # Enhanced rate limiting
     now = time.time()
-    if _last_query_time and (now - _last_query_time) < 0.9:
+    
+    # Clean up old calls (remove calls older than 60 seconds)
+    _api_calls_this_minute = [t for t in _api_calls_this_minute if now - t < 60]
+    
+    # Check if we've hit our per-minute limit
+    if len(_api_calls_this_minute) >= MAX_CALLS_PER_MINUTE:
+        logger.warning(
+            f"Rate limit: {len(_api_calls_this_minute)} calls in last 60s "
+            f"(max={MAX_CALLS_PER_MINUTE}). Skipping this query."
+        )
         return {
             'symbol': None,
             'articles_found': 0,
             'queued_for_scoring': 0,
-            'reason': 'rate_limit'
+            'reason': 'rate_limit_per_minute'
         }
+    
+    # Enforce minimum time between calls
+    if _last_query_time and (now - _last_query_time) < MIN_SECONDS_BETWEEN_CALLS:
+        time_to_wait = MIN_SECONDS_BETWEEN_CALLS - (now - _last_query_time)
+        return {
+            'symbol': None,
+            'articles_found': 0,
+            'queued_for_scoring': 0,
+            'reason': 'rate_limit_spacing',
+            'wait_time': time_to_wait
+        }
+    
+    # If we've had consecutive 429 errors, back off exponentially
+    if _consecutive_429_errors > 0:
+        backoff_time = min(60, 2 ** _consecutive_429_errors)  # Cap at 60 seconds
+        if _last_query_time and (now - _last_query_time) < backoff_time:
+            return {
+                'symbol': None,
+                'articles_found': 0,
+                'queued_for_scoring': 0,
+                'reason': 'backoff_after_429',
+                'backoff_seconds': backoff_time,
+                'consecutive_errors': _consecutive_429_errors
+            }
     
     # Get Finnhub client
     client = get_finnhub_client()
@@ -397,9 +439,12 @@ def query_finnhub_for_news():
     # Get next symbol
     symbol = WATCHLIST[_current_index % len(WATCHLIST)]
     _current_index += 1
-    _last_query_time = now
     
     try:
+        # Record this API call
+        _api_calls_this_minute.append(now)
+        _last_query_time = now
+        
         # Query Finnhub for company news (last 1 day)
         today = datetime.now()
         yesterday = today - timedelta(days=1)
@@ -409,13 +454,17 @@ def query_finnhub_for_news():
             _from=yesterday.strftime('%Y-%m-%d'),
             to=today.strftime('%Y-%m-%d')
         )
+        
+        # Reset consecutive errors on success
+        _consecutive_429_errors = 0
 
         # Discovery-level logging for visibility into each API call
         total_returned = len(articles) if isinstance(articles, list) else 0
         logger.info(
             f"FINNHUB QUERY: symbol={symbol}, "
             f"from={yesterday.strftime('%Y-%m-%d')} to={today.strftime('%Y-%m-%d')}, "
-            f"articles_returned={total_returned}"
+            f"articles_returned={total_returned}, "
+            f"api_calls_last_60s={len(_api_calls_this_minute)}"
         )
         
         if not articles:
@@ -457,13 +506,34 @@ def query_finnhub_for_news():
         }
     
     except Exception as e:
-        logger.error(f"Error querying Finnhub for {symbol}: {e}", exc_info=True)
-        return {
-            'symbol': symbol,
-            'articles_found': 0,
-            'queued_for_scoring': 0,
-            'error': str(e)
-        }
+        # Check if this is a 429 rate limit error
+        error_str = str(e)
+        if '429' in error_str or 'rate limit' in error_str.lower() or 'API limit reached' in error_str:
+            _consecutive_429_errors += 1
+            logger.error(
+                f"⚠️ RATE LIMIT ERROR (429) for {symbol}: {e}\n"
+                f"   Consecutive 429 errors: {_consecutive_429_errors}\n"
+                f"   API calls in last 60s: {len(_api_calls_this_minute)}\n"
+                f"   Next backoff: {min(60, 2 ** _consecutive_429_errors)} seconds"
+            )
+            return {
+                'symbol': symbol,
+                'articles_found': 0,
+                'queued_for_scoring': 0,
+                'error': 'rate_limit_429',
+                'consecutive_errors': _consecutive_429_errors,
+                'calls_last_minute': len(_api_calls_this_minute)
+            }
+        else:
+            # Other error - reset consecutive 429 counter
+            _consecutive_429_errors = 0
+            logger.error(f"Error querying Finnhub for {symbol}: {e}", exc_info=True)
+            return {
+                'symbol': symbol,
+                'articles_found': 0,
+                'queued_for_scoring': 0,
+                'error': str(e)
+            }
 
 
 # ============================================================================

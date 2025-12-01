@@ -661,15 +661,23 @@ class Command(BaseCommand):
                         f'📰 Queued {finnhub_result["queued_for_scoring"]} {finnhub_result["symbol"]} articles for scoring'
                     ))
                 elif finnhub_result.get('error'):
-                    if self.verbose:
-                        self.stdout.write(self.style.WARNING(f'Finnhub query error: {finnhub_result.get("error")}'))
+                    error = finnhub_result.get('error')
+                    if error == 'rate_limit_429':
+                        # Rate limit hit - log it prominently
+                        self.stdout.write(self.style.ERROR(
+                            f'⚠️ RATE LIMIT: {finnhub_result.get("calls_last_minute", 0)} calls/min, '
+                            f'{finnhub_result.get("consecutive_errors", 0)} consecutive errors'
+                        ))
+                    elif self.verbose:
+                        self.stdout.write(self.style.WARNING(f'Finnhub query error: {error}'))
 
             except Exception as e:
                 if self.verbose:
                     self.stdout.write(self.style.ERROR(f'❌ News loop error: {e}'))
 
-            # Sleep 1 second
-            time.sleep(1)
+            # Sleep 1.2 seconds (matches MIN_SECONDS_BETWEEN_CALLS in finnhub_realtime_v2.py)
+            # This ensures we stay well under Finnhub's 60 calls/minute limit
+            time.sleep(1.2)
 
     def tiingo_news_loop(self):
         """Run every 5 seconds to fetch Tiingo news (non-blocking)"""
