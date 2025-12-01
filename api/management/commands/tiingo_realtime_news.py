@@ -61,6 +61,21 @@ MARKET_INDICES = [
     'VOO',   # Vanguard S&P 500 ETF
 ]
 
+# Sector ETFs for comprehensive sector coverage
+SECTOR_ETFS = [
+    'XLK',   # Technology Select Sector
+    'XLF',   # Financial Select Sector
+    'XLE',   # Energy Select Sector
+    'XLV',   # Health Care Select Sector
+    'XLY',   # Consumer Discretionary Select Sector
+    'XLP',   # Consumer Staples Select Sector
+    'XLI',   # Industrial Select Sector
+    'XLB',   # Materials Select Sector
+    'XLRE',  # Real Estate Select Sector
+    'XLU',   # Utilities Select Sector
+    'XLC',   # Communication Services Select Sector
+]
+
 # Market cap weights (same as Finnhub for consistency)
 from api.management.commands.nasdaq_config import COMPANY_NAMES
 MARKET_CAP_WEIGHTS = {ticker: 1.0/len(COMPANY_NAMES) for ticker in COMPANY_NAMES.keys()}
@@ -612,6 +627,44 @@ def query_tiingo_for_news():
         except Exception as e:
             # Market query failure is non-critical - we still have ticker data
             msg = f"   ✗ Market query failed (non-critical): {e}"
+            logger.warning(msg)
+            print(f"⚠️  {msg}")  # Ensure appears in Railway logs
+
+        # Query 3: Sector ETFs for comprehensive sector coverage
+        try:
+            msg = f"   → Querying {len(SECTOR_ETFS)} sector ETFs: {', '.join(SECTOR_ETFS[:5])}... (limit=1000)"
+            logger.info(msg)
+            print(msg)  # Ensure appears in Railway logs
+
+            # Query all sector ETFs for sector-specific news
+            sector_news = client.get_news(
+                tickers=SECTOR_ETFS,  # All major sector ETFs
+                limit=1000  # Maximum articles for sector news
+            )
+
+            sector_queued = 0
+            if sector_news and isinstance(sector_news, list):
+                total_articles_found += len(sector_news)
+                sector_queued = process_news_articles(sector_news, 'sector_query', start_time, now)
+                queued_count += sector_queued
+                msg = f"   ✓ Sector query: {len(sector_news)} articles found, {sector_queued} new articles queued"
+                logger.info(msg)
+                print(msg)  # Ensure appears in Railway logs
+                if len(sector_news) > 0:
+                    msg = f"      Sample: {sector_news[0].get('title', 'N/A')[:80]}..."
+                    logger.info(msg)
+                    print(msg)  # Ensure appears in Railway logs
+            else:
+                msg = (
+                    f"   ✓ Sector query: No articles returned "
+                    f"(raw_type={type(sector_news).__name__})"
+                )
+                logger.info(msg)
+                print(msg)  # Ensure appears in Railway logs
+
+        except Exception as e:
+            # Sector query failure is non-critical
+            msg = f"   ✗ Sector query failed (non-critical): {e}"
             logger.warning(msg)
             print(f"⚠️  {msg}")  # Ensure appears in Railway logs
 
