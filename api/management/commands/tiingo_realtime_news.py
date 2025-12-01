@@ -498,17 +498,18 @@ def query_tiingo_for_news():
         )
 
         # Format dates for Tiingo API
-        # Try date-only format first (YYYY-MM-DD) as Tiingo might not support time
-        start_date_str = start_time.strftime('%Y-%m-%d')
-        end_date_str = now.strftime('%Y-%m-%d')
+        # Use ISO 8601 datetime format (YYYY-MM-DDTHH:MM:SSZ) to respect time window
+        # Date-only format doesn't work for same-day queries (both dates become identical)
+        start_date_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_date_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
         
-        # Also prepare ISO 8601 format as backup
-        start_datetime_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_datetime_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+        # Keep date-only for display/logging
+        start_date_display = start_time.strftime('%Y-%m-%d')
+        end_date_display = now.strftime('%Y-%m-%d')
 
-        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_datetime_str} to {end_datetime_str}"
+        msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Fetching news from {start_date_str} to {end_date_str}"
         msg2 = f"   Time window: {(now - start_time).total_seconds():.1f} seconds"
-        msg3 = f"   API params: startDate={start_date_str}, endDate={end_date_str} (date-only format)"
+        msg3 = f"   API params: startDate={start_date_str}, endDate={end_date_str} (ISO 8601 format)"
         logger.info(msg1)
         logger.info(msg2)
         logger.info(msg3)
