@@ -18,7 +18,7 @@ import threading
 import queue
 import time
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -225,11 +225,19 @@ def save_article_to_db(article_data, impact):
             try:
                 published_str = article_data['published']
                 published_at = parse_datetime(published_str)
+                
+                # Ensure timezone-aware (Tiingo should return ISO 8601 with Z, but be defensive)
+                if published_at and timezone.is_naive(published_at):
+                    # Make naive datetime aware by assuming UTC
+                    published_at = published_at.replace(tzinfo=dt_timezone.utc)
+                    logger.warning(f"Converted naive datetime to UTC: {published_str}")
+                    
             except Exception as e:
-                logger.warning(f"Error parsing published date '{published_str}': {e}")
+                logger.error(f"Error parsing published date '{published_str}': {e}", exc_info=True)
 
         if not published_at:
             published_at = timezone.now()  # Fallback to current time
+            logger.warning(f"No valid published date, using current time: {published_at}")
 
         # Generate article hash
         article_hash = get_article_hash(article_data['url'])
