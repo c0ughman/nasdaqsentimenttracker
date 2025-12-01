@@ -70,7 +70,7 @@ MARKET_CAP_WEIGHTS.update({
 
 # Query timing
 POLL_INTERVAL = 5  # Poll Tiingo every 5 seconds
-TIME_WINDOW_MINUTES = 60  # Rolling window: last 60 minutes of news
+TIME_WINDOW_HOURS = 24  # Rolling window: last 24 hours of news
 
 # State tracking
 _last_query_time = None
@@ -484,9 +484,9 @@ def query_tiingo_for_news():
                 'error': 'client_unavailable'
             }
 
-        # Determine time window (rolling window based on TIME_WINDOW_MINUTES)
+        # Determine time window (rolling window based on TIME_WINDOW_HOURS)
         now = timezone.now()
-        start_time = now - timedelta(minutes=TIME_WINDOW_MINUTES)
+        start_time = now - timedelta(hours=TIME_WINDOW_HOURS)
         
         # For Tiingo News API: Query last 2 days to handle timezone/indexing issues
         # API uses date-only format, so we query a bit broader then filter by publishedDate
@@ -496,7 +496,7 @@ def query_tiingo_for_news():
         # Extra logging about the computed time window
         logger.info(
             "Tiingo query window: "
-            f"minutes={TIME_WINDOW_MINUTES}, "
+            f"hours={TIME_WINDOW_HOURS}, "
             f"start={start_time.isoformat()}, "
             f"end={now.isoformat()}, "
             f"delta_sec={(now - start_time).total_seconds():.1f}"
@@ -511,8 +511,8 @@ def query_tiingo_for_news():
         end_datetime_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Target window {start_datetime_str} to {end_datetime_str}"
-        msg2 = f"   API query: NO date parameters (getting latest news)"
-        msg3 = f"   Will filter by publishedDate to get articles in target window"
+        msg2 = f"   API query: NO date parameters (getting latest news, limit=1000)"
+        msg3 = f"   Will filter by publishedDate to get articles from last 24 hours"
         logger.info(msg1)
         logger.info(msg2)
         logger.info(msg3)
@@ -847,7 +847,7 @@ def initialize():
         logger.info("Tiingo Real-Time News Integration INITIALIZED")
         logger.info(f"  - Top tickers: {len(TOP_TICKERS)}")
         logger.info(f"  - Poll interval: {POLL_INTERVAL} seconds")
-        logger.info(f"  - Time window: {TIME_WINDOW_MINUTES} minutes (fallback)")
+        logger.info(f"  - Time window: {TIME_WINDOW_HOURS} hours")
         logger.info("=" * 60)
 
         return True
