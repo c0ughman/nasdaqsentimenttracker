@@ -114,14 +114,20 @@ class Command(BaseCommand):
         # CRITICAL: Track subscribed symbols for reconnection (EODHD requirement)
         self.subscribed_symbols = []  # List of symbols we're subscribed to
 
-        # Error logging deduplication
+        # Error logging deduplication (thread-safe)
         self.error_logged = False
         self.disconnect_logged = False
+        self.disconnect_log_lock = threading.Lock()  # Thread-safe lock for disconnect logging
+        self.error_log_lock = threading.Lock()  # Thread-safe lock for error logging
 
         # Connection metrics
         self.total_connections = 0
         self.total_disconnections = 0
         self.connection_start_time = None
+        
+        # Tick logging (summary only, not individual ticks)
+        self.last_tick_log_time = time.time()
+        self.ticks_since_last_log = 0
         
     def add_arguments(self, parser):
         parser.add_argument(
@@ -895,15 +901,8 @@ class Command(BaseCommand):
                 ))
                 return
             
-            # DIAGNOSTIC: Log raw timestamp data
-            if self.total_ticks < 5 or self.total_ticks % 100 == 0:
-                current_system_time = time.time()
-                self.stdout.write(self.style.NOTICE(
-                    f'🔍 DIAGNOSTIC Tick #{self.total_ticks + 1}: '
-                    f'Raw data timestamp field: {timestamp_unix}, '
-                    f'Current system time: {current_system_time:.3f}, '
-                    f'Data: {data}'
-                ))
+            # REMOVED: Individual tick diagnostic logging (too verbose)
+            # Only log first tick as milestone
             
             # Try bid/ask if no trade price (fallback)
             if price is None:
@@ -926,25 +925,13 @@ class Command(BaseCommand):
                     if timestamp_unix > 10000000000:
                         timestamp_unix = timestamp_unix / 1000
                     dt = datetime.fromtimestamp(timestamp_unix, tz=pytz.UTC)
-                    
-                    # DIAGNOSTIC: Log time difference
-                    if self.total_ticks < 5 or self.total_ticks % 100 == 0:
-                        current_time = timezone.now()
-                        time_diff = (current_time - dt).total_seconds()
-                        self.stdout.write(self.style.WARNING(
-                            f'⏰ TIME DIFF: Tick timestamp: {dt.strftime("%H:%M:%S.%f")}, '
-                            f'System time: {current_time.strftime("%H:%M:%S.%f")}, '
-                            f'Delay: {time_diff:.3f} seconds'
-                        ))
+                    # REMOVED: Individual tick time difference logging (too verbose)
                 except Exception as e:
                     self.stdout.write(self.style.ERROR(f'❌ Timestamp conversion error: {e}'))
                     dt = timezone.now()
             else:
                 dt = timezone.now()
-                if self.total_ticks < 5:
-                    self.stdout.write(self.style.WARNING(
-                        f'⚠️  No timestamp field in data, using system time: {dt.strftime("%H:%M:%S.%f")}'
-                    ))
+                # REMOVED: Individual tick timestamp warning (too verbose)
 
             # Update last data received time (for health monitoring)
             self.last_data_received_time = time.time()
@@ -975,32 +962,12 @@ class Command(BaseCommand):
             
             # Only add to 1-second buffer if not a late tick
             if not is_late_tick:
-                # DIAGNOSTIC: Log buffer operations
-                if self.total_ticks < 5 or self.total_ticks % 100 == 0:
-                    # Lock for reading keys for log
-                    with self.lock:
-                        keys_log = sorted(list(self.tick_buffer_1sec.keys())[-5:]) if self.tick_buffer_1sec else []
-                    
-                    self.stdout.write(self.style.NOTICE(
-                        f'📦 BUFFER: Adding tick to second {tick_second} ({dt.strftime("%H:%M:%S")}), '
-                        f'Current buffer keys: {keys_log}'
-                    ))
-                
                 # LOCK ACQUIRE for writing to 1-second buffer
                 with self.lock:
                     if tick_second not in self.tick_buffer_1sec:
                         self.tick_buffer_1sec[tick_second] = []
-                        self.stdout.write(self.style.SUCCESS(
-                            f'🆕 Created new buffer slot for second {tick_second} ({dt.strftime("%H:%M:%S")})'
-                        ))
                     self.tick_buffer_1sec[tick_second].append(tick)
-                
-                # DEBUG: Log first tick added to each second
-                if self.verbose:
-                    with self.lock:
-                        is_first = len(self.tick_buffer_1sec[tick_second]) == 1
-                    if is_first:
-                        self.stdout.write(f'🆕 First tick added to second {tick_second} ({dt.strftime("%H:%M:%S")})')
+                # REMOVED: Individual buffer operation logging (too verbose)
             
             # Always add to 100-tick buffer (even late ticks can be part of 100-tick candles)
             self.tick_buffer_100tick.append(tick)
@@ -1012,12 +979,19 @@ class Command(BaseCommand):
                 self.create_100tick_candle()
                 self.tick_counter_100 = 0
             
-            # Log progress (less frequently to reduce noise)
-            if self.verbose or self.total_ticks % 50 == 0:
+            # Summary tick logging (every 10 seconds, not individual ticks)
+            self.ticks_since_last_log += 1
+            current_time = time.time()
+            if current_time - self.last_tick_log_time >= 10.0:  # Log summary every 10 seconds
+                with self.lock:
+                    buffer_size = len(self.tick_buffer_1sec)
+                tick_rate = self.ticks_since_last_log / (current_time - self.last_tick_log_time)
                 self.stdout.write(
-                    f'📊 Tick #{self.total_ticks:>6}: {dt.strftime("%H:%M:%S")} | '
-                    f'${price:>8.2f} | Vol: {volume:>8,} | Buffer: {len(self.tick_buffer_1sec)} seconds'
+                    f'📊 Ticks: {self.total_ticks:,} | Rate: {tick_rate:.1f}/s | '
+                    f'Buffer: {buffer_size}s | Last: ${price:.2f} @ {dt.strftime("%H:%M:%S")}'
                 )
+                self.last_tick_log_time = current_time
+                self.ticks_since_last_log = 0
 
         except Exception as e:
             # Never crash on bad data - log and continue
@@ -1250,100 +1224,232 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f'❌ Error creating 100-tick candle: {e}'))
     
     def on_error(self, ws, error):
-        """Handle WebSocket errors (with duplicate prevention)"""
-        # Prevent duplicate error logging within 2 seconds
-        if self.error_logged:
-            return
+        """Handle WebSocket errors (with thread-safe duplicate prevention and diagnostics)"""
+        # THREAD-SAFE: Prevent duplicate error logging
+        with self.error_log_lock:
+            if self.error_logged:
+                return  # Already logged, skip duplicate
+            self.error_logged = True
 
-        self.error_logged = True
         error_str = str(error)
+        current_time = time.time()
+
+        # Gather diagnostics
+        time_since_last_data = None
+        if self.last_data_received_time:
+            time_since_last_data = current_time - self.last_data_received_time
 
         self.stdout.write(self.style.ERROR(
             '\n' + '='*70 + '\n'
             '❌ WEBSOCKET ERROR EVENT\n'
             '='*70 + '\n'
             f'Error Details: {error}\n'
+            f'Error Type: {type(error).__name__}\n'
+            f'Connection State: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}\n'
         ))
 
         # Detect 429 rate limiting errors
         if '429' in error_str or 'Too Many Requests' in error_str:
             self.consecutive_429_errors += 1
-            self.last_429_error_time = time.time()
+            self.last_429_error_time = current_time
 
             if self.connection_established:
-                self.stdout.write(self.style.WARNING(
-                    f'🚫 Error Type: RATE LIMIT (429) - Server closed ESTABLISHED connection\n'
+                self.stdout.write(self.style.ERROR(
+                    f'🚫 Error Category: RATE LIMIT (429) - Server closed ESTABLISHED connection\n'
                     f'   Reason: Too many requests detected by server\n'
                     f'   Consecutive 429 errors: {self.consecutive_429_errors}\n'
                     f'   Connection was active before this error'
                 ))
             else:
-                self.stdout.write(self.style.WARNING(
-                    f'🚫 Error Type: RATE LIMIT (429) - Connection HANDSHAKE REJECTED\n'
+                self.stdout.write(self.style.ERROR(
+                    f'🚫 Error Category: RATE LIMIT (429) - Connection HANDSHAKE REJECTED\n'
                     f'   Reason: Server rejected connection attempt due to rate limiting\n'
                     f'   Consecutive 429 errors: {self.consecutive_429_errors}\n'
                     f'   Connection never established'
+                ))
+            
+            if time_since_last_data:
+                self.stdout.write(self.style.ERROR(
+                    f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds'
                 ))
 
         # Log other common disconnection causes
         elif '502' in error_str or 'Bad Gateway' in error_str:
             self.stdout.write(self.style.WARNING(
-                f'🚫 Error Type: SERVER ERROR (502 Bad Gateway)\n'
+                f'🚫 Error Category: SERVER ERROR (502 Bad Gateway)\n'
                 f'   Reason: Server is overloaded or undergoing maintenance\n'
                 f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
             ))
-        elif 'timeout' in error_str.lower():
+        elif '503' in error_str or 'Service Unavailable' in error_str:
             self.stdout.write(self.style.WARNING(
-                f'🚫 Error Type: CONNECTION TIMEOUT\n'
+                f'🚫 Error Category: SERVER ERROR (503 Service Unavailable)\n'
+                f'   Reason: Server temporarily unavailable\n'
+                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+            ))
+        elif 'timeout' in error_str.lower() or 'timed out' in error_str.lower():
+            self.stdout.write(self.style.WARNING(
+                f'🚫 Error Category: CONNECTION TIMEOUT\n'
                 f'   Reason: Network or server did not respond in time\n'
+                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+            ))
+            if time_since_last_data:
+                self.stdout.write(self.style.WARNING(
+                    f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds'
+                ))
+        elif 'SSL' in error_str or 'TLS' in error_str or 'certificate' in error_str.lower():
+            self.stdout.write(self.style.ERROR(
+                f'🚫 Error Category: SSL/TLS ERROR\n'
+                f'   Reason: Certificate or encryption issue\n'
+                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+            ))
+        elif 'Connection refused' in error_str or 'Connection reset' in error_str:
+            self.stdout.write(self.style.WARNING(
+                f'🚫 Error Category: NETWORK ERROR\n'
+                f'   Reason: Connection refused or reset by server\n'
                 f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
             ))
         else:
             self.stdout.write(self.style.WARNING(
-                f'🚫 Error Type: UNKNOWN\n'
+                f'🚫 Error Category: UNKNOWN\n'
                 f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+            ))
+            if time_since_last_data:
+                self.stdout.write(self.style.WARNING(
+                    f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds'
+                ))
+
+        # Connection metrics
+        if self.connection_established:
+            self.stdout.write(self.style.WARNING(
+                f'📊 Connection Metrics:\n'
+                f'   Total ticks: {self.total_ticks:,}\n'
+                f'   SecondSnapshots: {self.total_1sec_candles:,}'
             ))
 
         self.stdout.write(self.style.ERROR('='*70 + '\n'))
 
-        # Reset flag after 2 seconds
-        threading.Timer(2.0, lambda: setattr(self, 'error_logged', False)).start()
+        # Reset flag after 5 seconds (longer to prevent duplicates)
+        threading.Timer(5.0, lambda: setattr(self, 'error_logged', False)).start()
     
     def on_close(self, ws, close_status_code, close_msg):
-        """Handle WebSocket close (with duplicate prevention)"""
-        # Prevent duplicate disconnect logging within 2 seconds
-        if self.disconnect_logged:
-            return
+        """Handle WebSocket close (with thread-safe duplicate prevention and comprehensive diagnostics)"""
+        # THREAD-SAFE: Prevent duplicate disconnect logging
+        with self.disconnect_log_lock:
+            if self.disconnect_logged:
+                return  # Already logged, skip duplicate
+            self.disconnect_logged = True
 
-        self.disconnect_logged = True
         self.total_disconnections += 1
 
-        # Determine if this was an established connection or failed handshake
+        # Gather comprehensive diagnostics BEFORE logging
         was_connected = self.connection_established
         connection_duration = None
+        time_since_last_data = None
+        time_since_connection = None
+        
+        current_time = time.time()
+        
         if self.last_connection_time:
-            connection_duration = time.time() - self.last_connection_time
+            connection_duration = current_time - self.last_connection_time
+            time_since_connection = current_time - self.last_connection_time
+        
+        if self.last_data_received_time:
+            time_since_last_data = current_time - self.last_data_received_time
+        
+        # Calculate tick rate during this connection
+        tick_rate = None
+        if was_connected and connection_duration and connection_duration > 0:
+            # Estimate ticks during this connection (approximate)
+            tick_rate = self.total_ticks / connection_duration if connection_duration > 0 else None
 
+        # Determine disconnection reason
+        disconnect_reason = "UNKNOWN"
+        disconnect_category = "UNKNOWN"
+        
+        # Check for rate limiting first (takes precedence)
+        if self.consecutive_429_errors > 0:
+            disconnect_reason = f"Rate limit (429) - {self.consecutive_429_errors} consecutive errors"
+            disconnect_category = "RATE_LIMIT"
+        elif close_status_code:
+            if close_status_code == 1000:
+                disconnect_reason = "Normal closure (1000)"
+                disconnect_category = "NORMAL"
+            elif close_status_code == 1001:
+                disconnect_reason = "Going away (1001) - Server shutdown or client navigation"
+                disconnect_category = "SERVER_SHUTDOWN"
+            elif close_status_code == 1006:
+                disconnect_reason = "Abnormal closure (1006) - No close frame received"
+                disconnect_category = "ABNORMAL"
+            elif close_status_code == 1008:
+                disconnect_reason = "Policy violation (1008) - Server rejected connection"
+                disconnect_category = "POLICY_VIOLATION"
+            elif close_status_code == 1011:
+                disconnect_reason = "Server error (1011) - Internal server error"
+                disconnect_category = "SERVER_ERROR"
+            elif close_status_code == 1012:
+                disconnect_reason = "Service restart (1012) - Server restarting"
+                disconnect_category = "SERVER_RESTART"
+            elif close_status_code == 1013:
+                disconnect_reason = "Try again later (1013) - Server overloaded"
+                disconnect_category = "SERVER_OVERLOAD"
+            elif close_status_code == 1014:
+                disconnect_reason = "Bad gateway (1014) - Gateway error"
+                disconnect_category = "GATEWAY_ERROR"
+            elif close_status_code == 1015:
+                disconnect_reason = "TLS handshake failure (1015)"
+                disconnect_category = "TLS_ERROR"
+            else:
+                disconnect_reason = f"Close code {close_status_code}"
+                disconnect_category = "OTHER"
+        else:
+            # No close code - abnormal closure
+            if was_connected:
+                if time_since_last_data and time_since_last_data > 15:
+                    disconnect_reason = "Idle timeout - No data received for >15 seconds"
+                    disconnect_category = "IDLE_TIMEOUT"
+                elif time_since_last_data and time_since_last_data > 5:
+                    disconnect_reason = "Network drop - No data received for >5 seconds"
+                    disconnect_category = "NETWORK_DROP"
+                else:
+                    disconnect_reason = "Abnormal closure - Connection closed without close frame"
+                    disconnect_category = "ABNORMAL"
+            else:
+                disconnect_reason = "Handshake failed - Connection never established"
+                disconnect_category = "HANDSHAKE_FAILED"
+
+        # Check for rate limiting context
+        rate_limit_context = ""
+        if self.consecutive_429_errors > 0:
+            rate_limit_context = f" | Rate limit errors: {self.consecutive_429_errors}"
+            if self.last_429_error_time:
+                time_since_429 = current_time - self.last_429_error_time
+                rate_limit_context += f" (last {time_since_429:.1f}s ago)"
+
+        # Log comprehensive diagnostics
         self.stdout.write(self.style.WARNING(
             '\n' + '='*70 + '\n'
             '🔌 WEBSOCKET DISCONNECTION EVENT\n'
-            '='*70
+            '='*70 + '\n'
         ))
 
+        # Connection status
         if was_connected:
             self.stdout.write(self.style.WARNING(
                 f'📊 Connection Status: ESTABLISHED connection was CLOSED\n'
                 f'⏱️  Connection Duration: {connection_duration:.1f} seconds\n'
-                f'📈 Total ticks collected: {self.total_ticks:,}\n'
-                f'📊 SecondSnapshots created: {self.total_1sec_candles:,}\n'
-                f'🔄 Total disconnections: {self.total_disconnections}'
+                f'📈 Ticks Collected: {self.total_ticks:,}'
             ))
+            if tick_rate:
+                self.stdout.write(self.style.WARNING(
+                    f'📊 Tick Rate: {tick_rate:.1f} ticks/second'
+                ))
         else:
             self.stdout.write(self.style.WARNING(
                 f'📊 Connection Status: HANDSHAKE FAILED (connection never established)\n'
                 f'❌ Could not complete WebSocket handshake with server'
             ))
 
+        # Close code and message
         if close_status_code:
             self.stdout.write(self.style.WARNING(
                 f'🔢 Close Code: {close_status_code}'
@@ -1354,12 +1460,72 @@ class Command(BaseCommand):
                 ))
         else:
             self.stdout.write(self.style.WARNING(
-                f'🔢 Close Code: None (abnormal closure - likely idle timeout or network drop)'
+                f'🔢 Close Code: None (abnormal closure)'
             ))
 
-        if self.consecutive_429_errors > 0:
+        # Disconnection reason and category
+        self.stdout.write(self.style.ERROR(
+            f'🔍 Disconnection Reason: {disconnect_reason}\n'
+            f'📋 Category: {disconnect_category}'
+        ))
+
+        # Data flow diagnostics
+        if was_connected:
             self.stdout.write(self.style.WARNING(
-                f'⚠️  Rate Limit Context: {self.consecutive_429_errors} consecutive 429 errors'
+                f'📊 Data Flow Diagnostics:'
+            ))
+            if time_since_last_data is not None:
+                self.stdout.write(self.style.WARNING(
+                    f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds'
+                ))
+            else:
+                self.stdout.write(self.style.WARNING(
+                    f'   ⏰ Time since last data: Never received data'
+                ))
+            
+            self.stdout.write(self.style.WARNING(
+                f'   📈 SecondSnapshots created: {self.total_1sec_candles:,}\n'
+                f'   🎯 100-tick candles created: {self.total_100tick_candles:,}'
+            ))
+            
+            with self.lock:
+                buffer_size = len(self.tick_buffer_1sec)
+            self.stdout.write(self.style.WARNING(
+                f'   📦 Ticks in buffer: {buffer_size} seconds'
+            ))
+
+        # Rate limiting context
+        if rate_limit_context:
+            self.stdout.write(self.style.ERROR(
+                f'🚫 Rate Limit Context:{rate_limit_context}'
+            ))
+
+        # Connection history
+        self.stdout.write(self.style.WARNING(
+            f'🔄 Connection History: Total connections: {self.total_connections} | '
+            f'Total disconnections: {self.total_disconnections}'
+        ))
+
+        # Recommendations based on disconnect category
+        if disconnect_category == "IDLE_TIMEOUT":
+            self.stdout.write(self.style.WARNING(
+                f'💡 Recommendation: Connection idle timeout detected. '
+                f'Consider checking ping/pong keepalive settings.'
+            ))
+        elif disconnect_category == "RATE_LIMIT" or self.consecutive_429_errors > 0:
+            self.stdout.write(self.style.ERROR(
+                f'💡 Recommendation: Rate limiting detected. '
+                f'Reduce connection frequency or check API subscription limits.'
+            ))
+        elif disconnect_category == "NETWORK_DROP":
+            self.stdout.write(self.style.WARNING(
+                f'💡 Recommendation: Network instability detected. '
+                f'Check network connectivity and firewall settings.'
+            ))
+        elif disconnect_category == "SERVER_ERROR" or disconnect_category == "SERVER_OVERLOAD":
+            self.stdout.write(self.style.WARNING(
+                f'💡 Recommendation: Server-side issue detected. '
+                f'This is likely temporary - will retry with backoff.'
             ))
 
         self.stdout.write(self.style.WARNING('='*70 + '\n'))
@@ -1367,8 +1533,8 @@ class Command(BaseCommand):
         # Reset connection state
         self.connection_established = False
 
-        # Reset flag after 2 seconds
-        threading.Timer(2.0, lambda: setattr(self, 'disconnect_logged', False)).start()
+        # Reset flag after 5 seconds (longer to prevent duplicates)
+        threading.Timer(5.0, lambda: setattr(self, 'disconnect_logged', False)).start()
     
     def cleanup(self):
         """Cleanup and display statistics"""
