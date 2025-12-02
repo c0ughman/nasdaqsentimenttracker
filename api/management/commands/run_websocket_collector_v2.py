@@ -329,21 +329,27 @@ class Command(BaseCommand):
         while self.running:
             try:
                 # Calculate backoff delay
+                # OPTIMIZATION: If this is a reconnection after an established connection,
+                # use minimal delay (2s) to reconnect immediately
                 if retry_count > 0:
-                    delay = min(2 ** retry_count, max_backoff)
-                    self.stdout.write(self.style.WARNING(
-                        f'⏳ Reconnecting in {delay}s (attempt #{retry_count + 1})...'
-                    ))
+                    was_connected_before = self.connection_established
+                    
+                    if was_connected_before:
+                        # Established connection dropped - reconnect immediately with minimal delay
+                        delay = 2  # Just 2 seconds to allow graceful cleanup
+                        self.stdout.write(self.style.WARNING(
+                            f'⚡ FAST RECONNECT: Previous connection was established. Reconnecting in {delay}s...'
+                        ))
+                    else:
+                        # Initial connection failed or handshake rejected - use exponential backoff
+                        delay = min(2 ** retry_count, max_backoff)
+                        self.stdout.write(self.style.WARNING(
+                            f'⏳ Reconnecting in {delay}s (attempt #{retry_count + 1})...'
+                        ))
+                    
                     time.sleep(delay)
 
                 self.stdout.write(self.style.WARNING('🔌 Connecting to EODHD WebSocket...'))
-
-                # Reset connection state for new attempt
-                was_connected_before = self.connection_established
-                if was_connected_before:
-                    self.stdout.write(self.style.WARNING(
-                        f'   Previous connection was established. Attempting reconnection...'
-                    ))
 
                 # Create WebSocket app
                 self.ws = websocket.WebSocketApp(
@@ -359,17 +365,27 @@ class Command(BaseCommand):
                 import socket
 
                 # CRITICAL: Enable WebSocket ping/pong keepalive to prevent idle timeout
-                self.stdout.write(self.style.SUCCESS('💓 Keepalive enabled: ping every 30s'))
+                # OPTIMIZATION: Faster ping (15s) and shorter timeout (5s) for quicker detection
+                self.stdout.write(self.style.SUCCESS('💓 Keepalive enabled: ping every 15s, timeout 5s'))
                 self.ws.run_forever(
                     sslopt={"cert_reqs": ssl.CERT_NONE},
-                    ping_interval=30,    # Send ping every 30 seconds
-                    ping_timeout=10,     # Wait 10 seconds for pong response
+                    ping_interval=15,    # Send ping every 15 seconds (was 30s)
+                    ping_timeout=5,      # Wait 5 seconds for pong response (was 10s)
                     ping_payload="keepalive"  # Optional payload
                 )
 
                 # If we reach here, connection closed (not an exception)
+                # Track if this was an established connection before resetting the flag
+                was_established = self.connection_established
                 self.connection_established = False
-                retry_count += 1  # Increment for exponential backoff
+                
+                # Only increment retry count if connection never established
+                # This ensures established connections reconnect immediately
+                if not was_established:
+                    retry_count += 1
+                else:
+                    # Reset retry count for established connections to enable fast reconnect
+                    retry_count = 1
 
             except KeyboardInterrupt:
                 self.stdout.write(self.style.WARNING('🛑 Keyboard interrupt - stopping...'))
@@ -582,14 +598,14 @@ class Command(BaseCommand):
     def health_monitor_loop(self):
         """
         Monitor WebSocket connection health with faster detection.
-        EODHD baseline: <50ms transport latency, so 60s without data = problem.
+        EODHD baseline: <50ms transport latency, so 15s without data = problem.
         Also enforces market hours by disconnecting after market close.
         """
         self.stdout.write(self.style.SUCCESS('💓 Health monitor loop started'))
 
         last_health_log = 0
-        stale_threshold = 60  # Alert if no data for 60s (was 120s)
-        check_interval = 10   # Check every 10s (was 120s via sleep)
+        stale_threshold = 15  # Alert if no data for 15s (OPTIMIZED: was 60s)
+        check_interval = 5    # Check every 5s (OPTIMIZED: was 10s)
 
         while self.running:
             try:
@@ -950,6 +966,7 @@ class Command(BaseCommand):
                 if tick_second in self.processed_seconds:
                     # This second was already closed and processed - skip 1-second buffer
                     is_late_tick = True
+                    # OPTIMIZATION: Only log late ticks in verbose mode to reduce log spam
                     if self.verbose:
                         self.stdout.write(self.style.WARNING(
                             f'⏭️  LATE TICK: Second {tick_second} ({dt.strftime("%H:%M:%S")}) '
