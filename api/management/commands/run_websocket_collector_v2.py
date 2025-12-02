@@ -106,6 +106,7 @@ class Command(BaseCommand):
         self.connection_established = False  # Track if we ever successfully connected
         self.last_connection_time = None
         self.last_data_received_time = None  # Track when we last received data
+        self.was_established_before_close = False  # Track if connection was established before close (for fast reconnect)
 
         # Health monitoring
         self.last_heartbeat_time = None
@@ -119,6 +120,8 @@ class Command(BaseCommand):
         self.disconnect_logged = False
         self.disconnect_log_lock = threading.Lock()  # Thread-safe lock for disconnect logging
         self.error_log_lock = threading.Lock()  # Thread-safe lock for error logging
+        self._last_disconnect_log_time = 0  # Timestamp of last disconnect log
+        self._closing_in_progress = False  # Flag to prevent concurrent close handling
 
         # Connection metrics
         self.total_connections = 0
@@ -338,7 +341,8 @@ class Command(BaseCommand):
                 # OPTIMIZATION: If this is a reconnection after an established connection,
                 # use minimal delay (2s) to reconnect immediately
                 if retry_count > 0:
-                    was_connected_before = self.connection_established
+                    # Check if previous connection was established (before it closed)
+                    was_connected_before = self.was_established_before_close
                     
                     if was_connected_before:
                         # Established connection dropped - reconnect immediately with minimal delay
@@ -346,6 +350,8 @@ class Command(BaseCommand):
                         self.stdout.write(self.style.WARNING(
                             f'⚡ FAST RECONNECT: Previous connection was established. Reconnecting in {delay}s...'
                         ))
+                        # Reset flag after using it
+                        self.was_established_before_close = False
                     else:
                         # Initial connection failed or handshake rejected - use exponential backoff
                         delay = min(2 ** retry_count, max_backoff)
@@ -385,13 +391,9 @@ class Command(BaseCommand):
                 was_established = self.connection_established
                 self.connection_established = False
                 
-                # Only increment retry count if connection never established
-                # This ensures established connections reconnect immediately
-                if not was_established:
-                    retry_count += 1
-                else:
-                    # Reset retry count for established connections to enable fast reconnect
-                    retry_count = 1
+                # Increment retry count for next iteration
+                # Fast reconnect logic will check was_established_before_close flag
+                retry_count += 1
 
             except KeyboardInterrupt:
                 self.stdout.write(self.style.WARNING('🛑 Keyboard interrupt - stopping...'))
@@ -632,18 +634,47 @@ class Command(BaseCommand):
 
                 # Check if we're connected and receiving data
                 if self.connection_established:
+                    # Calculate connection age
+                    connection_age = None
+                    if self.last_connection_time:
+                        connection_age = current_time - self.last_connection_time
+                    
                     if self.last_data_received_time:
                         time_since_last_data = current_time - self.last_data_received_time
 
                         # CRITICAL: Detect stale connections faster
-                        if time_since_last_data > stale_threshold:
+                        # But be more lenient for NEW connections (first 30 seconds)
+                        # New connections might take a few seconds to start receiving data
+                        effective_threshold = stale_threshold
+                        if connection_age and connection_age < 30:
+                            # New connection - give it more time (30s grace period)
+                            effective_threshold = 30
+                            if time_since_last_data > effective_threshold:
+                                self.stdout.write(self.style.ERROR(
+                                    f'❌ STALE CONNECTION (NEW): No data for {time_since_last_data:.0f}s '
+                                    f'(connection age: {connection_age:.0f}s, threshold: {effective_threshold}s)\n'
+                                    f'   New connection never received data - likely subscription issue.\n'
+                                    f'   Forcing reconnect...'
+                                ))
+                                if self.ws:
+                                    self.ws.close()
+                        elif time_since_last_data > effective_threshold:
                             self.stdout.write(self.style.ERROR(
-                                f'❌ STALE CONNECTION: No data for {time_since_last_data:.0f}s (threshold: {stale_threshold}s)\n'
+                                f'❌ STALE CONNECTION: No data for {time_since_last_data:.0f}s (threshold: {effective_threshold}s)\n'
                                 f'   EODHD baseline is <50ms latency - this connection is dead.\n'
                                 f'   Forcing reconnect...'
                             ))
                             if self.ws:
                                 self.ws.close()
+                    elif connection_age and connection_age > 30:
+                        # Connection established but never received data after 30 seconds
+                        self.stdout.write(self.style.ERROR(
+                            f'❌ STALE CONNECTION: Connection established {connection_age:.0f}s ago but never received data\n'
+                            f'   Likely subscription issue or server problem.\n'
+                            f'   Forcing reconnect...'
+                        ))
+                        if self.ws:
+                            self.ws.close()
 
                     # Log health status every 60 seconds
                     if current_time - last_health_log >= 60:
@@ -1333,16 +1364,30 @@ class Command(BaseCommand):
     
     def on_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close (with thread-safe duplicate prevention and comprehensive diagnostics)"""
-        # THREAD-SAFE: Prevent duplicate disconnect logging
+        # THREAD-SAFE: Prevent duplicate disconnect logging with timestamp check
+        current_time = time.time()
         with self.disconnect_log_lock:
-            if self.disconnect_logged:
-                return  # Already logged, skip duplicate
+            # Check if we're already processing a close event
+            if self._closing_in_progress:
+                return  # Already handling a close, skip duplicate
+            
+            # Check if we've logged a disconnect in the last 10 seconds (more robust)
+            if self.disconnect_logged and current_time - self._last_disconnect_log_time < 10.0:
+                return  # Too soon, skip duplicate
+            
+            # Mark as processing and logged
+            self._closing_in_progress = True
             self.disconnect_logged = True
+            self._last_disconnect_log_time = current_time
 
         self.total_disconnections += 1
 
-        # Gather comprehensive diagnostics BEFORE logging
+        # CRITICAL: Store if connection was established BEFORE resetting flag (for fast reconnect)
         was_connected = self.connection_established
+        if was_connected:
+            self.was_established_before_close = True  # Mark for fast reconnect logic
+
+        # Gather comprehensive diagnostics BEFORE logging
         connection_duration = None
         time_since_last_data = None
         time_since_connection = None
@@ -1533,8 +1578,13 @@ class Command(BaseCommand):
         # Reset connection state
         self.connection_established = False
 
-        # Reset flag after 5 seconds (longer to prevent duplicates)
-        threading.Timer(5.0, lambda: setattr(self, 'disconnect_logged', False)).start()
+        # Reset flags after 10 seconds (longer to prevent duplicates)
+        def reset_flags():
+            with self.disconnect_log_lock:
+                self.disconnect_logged = False
+                self._closing_in_progress = False
+        
+        threading.Timer(10.0, reset_flags).start()
     
     def cleanup(self):
         """Cleanup and display statistics"""
