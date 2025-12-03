@@ -162,6 +162,127 @@ class Command(BaseCommand):
             ))
             return
         
+        # Automatic duplicate instance detection and cleanup
+        # Works on Railway and local environments
+        try:
+            import subprocess
+            current_pid = os.getpid()
+            matching_pids = []
+            
+            # Try multiple methods to find duplicate instances (Railway-compatible)
+            # Method 1: Try 'ps aux' (works on most Unix systems including Railway)
+            try:
+                result = subprocess.run(
+                    ['ps', 'aux'],
+                    capture_output=True,
+                    text=True,
+                    timeout=3
+                )
+                if result.returncode == 0:
+                    lines = result.stdout.split('\n')
+                    for line in lines:
+                        if 'run_websocket_collector_v2' in line and 'grep' not in line:
+                            parts = line.split()
+                            if len(parts) > 1:
+                                try:
+                                    pid = int(parts[1])
+                                    if pid != current_pid:  # Don't count ourselves
+                                        matching_pids.append(pid)
+                                except (ValueError, IndexError):
+                                    continue
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+                pass  # Try next method
+            
+            # Method 2: Try 'pgrep' (alternative method for Railway)
+            if not matching_pids:
+                try:
+                    result = subprocess.run(
+                        ['pgrep', '-f', 'run_websocket_collector_v2'],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    if result.returncode == 0:
+                        for pid_str in result.stdout.strip().split('\n'):
+                            if pid_str:
+                                try:
+                                    pid = int(pid_str.strip())
+                                    if pid != current_pid:
+                                        matching_pids.append(pid)
+                                except ValueError:
+                                    continue
+                except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+                    pass  # Continue anyway
+            
+            # If duplicates found, automatically kill them
+            if matching_pids:
+                self.stdout.write(self.style.WARNING(
+                    f'\n' + '='*70 + '\n'
+                    f'⚠️  DUPLICATE INSTANCE DETECTED\n'
+                    f'='*70 + '\n'
+                    f'Found {len(matching_pids)} other instance(s) running (PIDs: {matching_pids})\n'
+                    f'Current instance PID: {current_pid}\n'
+                    f'This would cause duplicate logging and data collection.\n'
+                    f'Auto-stopping duplicate instances...\n'
+                ))
+                
+                killed_count = 0
+                failed_pids = []
+                
+                for pid in matching_pids:
+                    try:
+                        # Verify process still exists before killing
+                        os.kill(pid, 0)  # Signal 0 just checks if process exists
+                        # Process exists, kill it
+                        os.kill(pid, signal.SIGTERM)  # Graceful termination
+                        killed_count += 1
+                        self.stdout.write(self.style.SUCCESS(
+                            f'✅ Stopped duplicate instance (PID: {pid})'
+                        ))
+                        # Give it a moment to terminate gracefully
+                        time.sleep(0.5)
+                    except ProcessLookupError:
+                        # Process already dead, skip
+                        self.stdout.write(self.style.NOTICE(
+                            f'ℹ️  Process {pid} already terminated'
+                        ))
+                    except PermissionError:
+                        # Don't have permission to kill (shouldn't happen, but handle gracefully)
+                        failed_pids.append(pid)
+                        self.stdout.write(self.style.ERROR(
+                            f'❌ Permission denied killing PID {pid}'
+                        ))
+                    except Exception as e:
+                        failed_pids.append(pid)
+                        self.stdout.write(self.style.ERROR(
+                            f'❌ Failed to stop PID {pid}: {e}'
+                        ))
+                
+                # Summary
+                self.stdout.write(self.style.SUCCESS(
+                    f'\n📊 Cleanup Summary:\n'
+                    f'   Stopped: {killed_count} instance(s)\n'
+                    f'   Failed: {len(failed_pids)} instance(s)'
+                ))
+                
+                if failed_pids:
+                    self.stdout.write(self.style.WARNING(
+                        f'   ⚠️  Could not stop PIDs: {failed_pids}\n'
+                        f'   You may need to manually stop these processes'
+                    ))
+                
+                self.stdout.write(self.style.SUCCESS(
+                    f'\n✅ Continuing with current instance (PID: {current_pid})\n'
+                    f'='*70 + '\n'
+                ))
+                
+        except Exception as e:
+            # If check fails completely, log but don't break functionality
+            self.stdout.write(self.style.NOTICE(
+                f'ℹ️  Could not check for duplicate instances: {e}\n'
+                f'   Continuing anyway...'
+            ))
+        
         # Get or create ticker
         self.ticker, _ = Ticker.objects.get_or_create(
             symbol='QLD',
@@ -377,12 +498,13 @@ class Command(BaseCommand):
                 import socket
 
                 # CRITICAL: Enable WebSocket ping/pong keepalive to prevent idle timeout
-                # OPTIMIZATION: Faster ping (15s) and shorter timeout (5s) for quicker detection
-                self.stdout.write(self.style.SUCCESS('💓 Keepalive enabled: ping every 15s, timeout 5s'))
+                # OPTIMIZED: Balanced ping interval (20s) and lenient timeout (15s) to prevent false timeouts
+                # The longer timeout prevents false positives from network latency or server processing delays
+                self.stdout.write(self.style.SUCCESS('💓 Keepalive enabled: ping every 20s, timeout 15s'))
                 self.ws.run_forever(
                     sslopt={"cert_reqs": ssl.CERT_NONE},
-                    ping_interval=15,    # Send ping every 15 seconds (was 30s)
-                    ping_timeout=5,      # Wait 5 seconds for pong response (was 10s)
+                    ping_interval=20,    # Send ping every 20 seconds (balanced: not too frequent, not too slow)
+                    ping_timeout=15,     # Wait 15 seconds for pong response (lenient: prevents false timeouts)
                     ping_payload="keepalive"  # Optional payload
                 )
 
@@ -402,10 +524,26 @@ class Command(BaseCommand):
 
             except Exception as e:
                 retry_count += 1
+                error_str = str(e)
+                error_type = type(e).__name__
+                
+                # Check if this is a ping/pong timeout exception
+                is_timeout = ('timeout' in error_str.lower() or 
+                             'timed out' in error_str.lower() or 
+                             'WebSocketTimeoutException' in error_type or
+                             'Timeout' in error_type)
+                
+                if is_timeout and self.connection_established:
+                    # Ping/pong timeout on established connection - mark for fast reconnect
+                    self.was_established_before_close = True
+                    self.stdout.write(self.style.WARNING(
+                        f'⏱️  Ping/pong timeout detected - marking for fast reconnect'
+                    ))
+                
                 self.stdout.write(self.style.ERROR(
-                    f'❌ Connection error: {e}'
+                    f'❌ Connection error ({error_type}): {e}'
                 ))
-                # Continue loop - will retry with backoff
+                # Continue loop - will retry with backoff (fast reconnect if was_established_before_close is set)
 
         self.stdout.write(self.style.SUCCESS('✅ Connection loop exited'))
     
@@ -1317,15 +1455,35 @@ class Command(BaseCommand):
                 f'   Reason: Server temporarily unavailable\n'
                 f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
             ))
-        elif 'timeout' in error_str.lower() or 'timed out' in error_str.lower():
-            self.stdout.write(self.style.WARNING(
-                f'🚫 Error Category: CONNECTION TIMEOUT\n'
-                f'   Reason: Network or server did not respond in time\n'
-                f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
-            ))
+        elif 'timeout' in error_str.lower() or 'timed out' in error_str.lower() or 'WebSocketTimeoutException' in error_str:
+            # Detect ping/pong timeout specifically
+            is_ping_pong_timeout = 'ping' in error_str.lower() or 'pong' in error_str.lower() or 'WebSocketTimeoutException' in error_str
+            
+            if is_ping_pong_timeout:
+                self.stdout.write(self.style.WARNING(
+                    f'🚫 Error Category: PING/PONG TIMEOUT\n'
+                    f'   Reason: Server did not respond to ping within timeout period (15s)\n'
+                    f'   This may indicate network latency or server processing delay\n'
+                    f'   Connection will be closed and reconnected automatically\n'
+                    f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+                ))
+            else:
+                self.stdout.write(self.style.WARNING(
+                    f'🚫 Error Category: CONNECTION TIMEOUT\n'
+                    f'   Reason: Network or server did not respond in time\n'
+                    f'   Connection state: {"ESTABLISHED" if self.connection_established else "NOT ESTABLISHED"}'
+                ))
+            
             if time_since_last_data:
                 self.stdout.write(self.style.WARNING(
                     f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds'
+                ))
+            
+            # For ping/pong timeouts, mark connection for fast reconnect if it was established
+            if is_ping_pong_timeout and self.connection_established:
+                self.was_established_before_close = True
+                self.stdout.write(self.style.SUCCESS(
+                    f'   ✅ Marked for fast reconnect (connection was established before timeout)'
                 ))
         elif 'SSL' in error_str or 'TLS' in error_str or 'certificate' in error_str.lower():
             self.stdout.write(self.style.ERROR(
