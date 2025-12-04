@@ -416,8 +416,8 @@ def news_articles(request):
         
         # Fetch all news articles from the current trading day, ordered by most recent first
         articles = NewsArticle.objects.filter(
-            published_at__date=trading_day
-        ).select_related('ticker').order_by('-published_at')
+            fetched_at__date=trading_day
+        ).select_related('ticker').order_by('-fetched_at')
 
         # Helper function to convert sentiment score to label
         def get_sentiment_label(base_sentiment):
