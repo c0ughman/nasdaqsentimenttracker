@@ -132,6 +132,14 @@ class Command(BaseCommand):
         self.last_tick_log_time = time.time()
         self.ticks_since_last_log = 0
         
+        # Late tick logging rate limiter (prevent log spam even in verbose mode)
+        self.last_late_tick_log_time = 0
+        self.late_tick_log_count = 0
+        
+        # Late tick logging rate limiter (prevent log spam even in verbose mode)
+        self.last_late_tick_log_time = 0
+        self.late_tick_log_count = 0
+        
     def add_arguments(self, parser):
         parser.add_argument(
             '--symbol',
@@ -1122,12 +1130,18 @@ class Command(BaseCommand):
                 if tick_second in self.processed_seconds:
                     # This second was already closed and processed - skip 1-second buffer
                     is_late_tick = True
-                    # OPTIMIZATION: Only log late ticks in verbose mode to reduce log spam
+                    # OPTIMIZATION: Only log late ticks in verbose mode AND rate limit to max 1 per second
                     if self.verbose:
-                        self.stdout.write(self.style.WARNING(
-                            f'⏭️  LATE TICK: Second {tick_second} ({dt.strftime("%H:%M:%S")}) '
-                            f'already processed. Skipping 1-second buffer. Delay: {(timezone.now() - dt).total_seconds():.1f}s'
-                        ))
+                        current_time = time.time()
+                        if current_time - self.last_late_tick_log_time >= 1.0:  # Max 1 log per second
+                            self.late_tick_log_count += 1
+                            self.last_late_tick_log_time = current_time
+                            # Only log every 10th late tick to reduce spam
+                            if self.late_tick_log_count % 10 == 0:
+                                self.stdout.write(self.style.WARNING(
+                                    f'⏭️  LATE TICK (x{self.late_tick_log_count}): Second {tick_second} ({dt.strftime("%H:%M:%S")}) '
+                                    f'already processed. Skipping 1-second buffer. Delay: {(timezone.now() - dt).total_seconds():.1f}s'
+                                ))
             
             # Only add to 1-second buffer if not a late tick
             if not is_late_tick:
@@ -1522,21 +1536,25 @@ class Command(BaseCommand):
     
     def on_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close (with thread-safe duplicate prevention and comprehensive diagnostics)"""
-        # THREAD-SAFE: Prevent duplicate disconnect logging with timestamp check
+        # THREAD-SAFE: Prevent duplicate disconnect logging with immediate flag check and set
         current_time = time.time()
+        
+        # CRITICAL: Use a more robust check-and-set pattern to prevent race conditions
         with self.disconnect_log_lock:
             # Check if we're already processing a close event
             if self._closing_in_progress:
-                return  # Already handling a close, skip duplicate
+                return  # Already handling a close, skip duplicate immediately
             
-            # Check if we've logged a disconnect in the last 10 seconds (more robust)
-            if self.disconnect_logged and current_time - self._last_disconnect_log_time < 10.0:
-                return  # Too soon, skip duplicate
+            # Check if we've logged a disconnect in the last 30 seconds (increased from 10s)
+            if self.disconnect_logged and current_time - self._last_disconnect_log_time < 30.0:
+                return  # Too soon, skip duplicate immediately
             
-            # Mark as processing and logged
+            # IMMEDIATELY mark as processing BEFORE doing any work (prevents race conditions)
             self._closing_in_progress = True
             self.disconnect_logged = True
             self._last_disconnect_log_time = current_time
+        
+        # Now we can safely proceed with logging (only one thread will get here)
 
         self.total_disconnections += 1
 
@@ -1736,16 +1754,25 @@ class Command(BaseCommand):
         # Reset connection state
         self.connection_established = False
 
-        # Reset flags after 10 seconds (longer to prevent duplicates)
+        # Reset flags after 30 seconds (longer to prevent duplicates during rapid reconnects)
         def reset_flags():
             with self.disconnect_log_lock:
                 self.disconnect_logged = False
                 self._closing_in_progress = False
         
-        threading.Timer(10.0, reset_flags).start()
+        threading.Timer(30.0, reset_flags).start()
     
     def cleanup(self):
         """Cleanup and display statistics"""
+        # CRITICAL: Prevent duplicate cleanup calls (can happen from multiple threads/signals)
+        if not hasattr(self, '_cleanup_in_progress'):
+            self._cleanup_in_progress = False
+        
+        if self._cleanup_in_progress:
+            return  # Already cleaning up, skip duplicate
+        
+        self._cleanup_in_progress = True
+        
         self.stdout.write(self.style.WARNING('\n🧹 Starting cleanup...'))
 
         # Stop sentiment calculation thread
