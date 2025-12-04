@@ -136,88 +136,465 @@ def mark_article_processed(article_url):
 # DATABASE SAVING
 # ============================================================================
 
+def sanitize_text(text, field_name="text", max_length=None):
+    """
+    Sanitize text for database storage - removes null bytes, control chars, normalizes whitespace.
+    
+    Args:
+        text: Text to sanitize
+        field_name: Name of field for logging
+        max_length: Maximum length to truncate to
+    
+    Returns:
+        Sanitized text string
+    """
+    if not text:
+        return ""
+    
+    original_length = len(text)
+    issues_found = []
+    
+    # Remove null bytes (PostgreSQL can't store these)
+    if '\x00' in text:
+        text = text.replace('\x00', '')
+        issues_found.append("null_bytes")
+    
+    # Remove other control characters (0x01-0x1F) except tab, newline, carriage return
+    text_clean = ''.join(char for char in text if ord(char) >= 32 or char in '\t\n\r')
+    if len(text_clean) != len(text):
+        issues_found.append("control_chars")
+        text = text_clean
+    
+    # Normalize whitespace (collapse multiple spaces)
+    text = ' '.join(text.split())
+    
+    # Truncate if needed
+    if max_length and len(text) > max_length:
+        text = text[:max_length]
+        issues_found.append(f"truncated_to_{max_length}")
+    
+    # Log if sanitization occurred
+    if issues_found:
+        logger.info(
+            f"NEWSSAVING: 🧹 Sanitized {field_name}: "
+            f"issues={','.join(issues_found)} original_len={original_length} final_len={len(text)}"
+        )
+    
+    return text.strip()
+
+
+def safe_float(value, field_name="float", default=0.0, min_val=-1e10, max_val=1e10):
+    """
+    Validate float is not NaN/Inf and within safe range.
+    
+    Args:
+        value: Float value to validate
+        field_name: Name of field for logging
+        default: Default value if invalid
+        min_val: Minimum allowed value
+        max_val: Maximum allowed value
+    
+    Returns:
+        Safe float value
+    """
+    import math
+    
+    if value is None:
+        return default
+    
+    try:
+        value = float(value)
+        
+        # Check for NaN/Infinity
+        if math.isnan(value):
+            logger.warning(f"NEWSSAVING: ⚠️ {field_name} was NaN, using default={default}")
+            return default
+        
+        if math.isinf(value):
+            logger.warning(f"NEWSSAVING: ⚠️ {field_name} was Infinity, using default={default}")
+            return default
+        
+        # Clamp to safe range
+        if value < min_val or value > max_val:
+            clamped = max(min_val, min(max_val, value))
+            logger.warning(
+                f"NEWSSAVING: ⚠️ {field_name} out of range: {value}, clamped to {clamped}"
+            )
+            return clamped
+        
+        return value
+        
+    except (ValueError, TypeError) as e:
+        logger.warning(f"NEWSSAVING: ⚠️ {field_name} conversion error: {e}, using default={default}")
+        return default
+
+
+def safe_url(url, max_length=500):
+    """
+    Clean and validate URL for database storage.
+    
+    Args:
+        url: URL string to clean
+        max_length: Maximum length
+    
+    Returns:
+        Cleaned URL string
+    """
+    if not url:
+        return ""
+    
+    original = url
+    
+    # Strip whitespace
+    url = url.strip()
+    
+    # Remove control characters and newlines
+    url = ''.join(char for char in url if ord(char) >= 32)
+    
+    # Replace spaces with %20 (basic encoding)
+    url = url.replace(' ', '%20')
+    
+    # Remove null bytes
+    url = url.replace('\x00', '')
+    
+    # Truncate if needed
+    if len(url) > max_length:
+        url = url[:max_length]
+    
+    if url != original:
+        logger.info(f"NEWSSAVING: 🔗 Cleaned URL: original_len={len(original)} final_len={len(url)}")
+    
+    return url
+
+
 def save_article_to_db(article_data, impact):
     """
     Save article to NewsArticle database table.
+    
+    ULTRA-ROBUST VERSION: Handles ALL possible save errors with comprehensive logging.
+    Every log includes "NEWSSAVING" keyword for easy searching.
 
     Args:
         article_data: Dict with article info (headline, summary, url, symbol, published)
         impact: Calculated sentiment impact
+    
+    Returns:
+        NewsArticle instance or None only if all retries fail
     """
-    try:
-        from api.models import NewsArticle, Ticker
-        from django.utils.dateparse import parse_datetime
-        from django.utils import timezone
-
-        # Get or create ticker
-        ticker_symbol = article_data['symbol']
+    max_retries = 3
+    retry_delay = 0.5  # seconds
+    
+    for attempt in range(max_retries):
         try:
-            ticker = Ticker.objects.get(symbol=ticker_symbol)
-        except Ticker.DoesNotExist:
-            logger.warning(f"Ticker {ticker_symbol} not found in database, using QLD as fallback")
-            ticker = Ticker.objects.get(symbol='QLD')  # Fallback to NASDAQ composite
+            from api.models import NewsArticle, Ticker
+            from django.utils.dateparse import parse_datetime
+            from django.utils import timezone
+            from django.db import IntegrityError, OperationalError, DatabaseError
+            import time
 
-        # Parse published date
-        published_at = None
-        if article_data.get('published'):
+            logger.info(f"NEWSSAVING: 📥 ENTRY attempt={attempt+1}/{max_retries} source=Finnhub")
+
+            # ============================================================
+            # 1. VALIDATE AND CLEAN ARTICLE DATA
+            # ============================================================
+            
+            # Get ticker symbol with fallback
+            ticker_symbol = str(article_data.get('symbol', 'QLD')).strip().upper()
+            if not ticker_symbol:
+                ticker_symbol = 'QLD'
+                logger.info(f"NEWSSAVING: ⚠️ Empty symbol, using QLD")
+            
+            # Get headline with fallback and sanitization
+            headline = str(article_data.get('headline', '')).strip()
+            if not headline or not headline.replace(' ', ''):  # Check for whitespace-only
+                headline = f"[No headline] Article from {ticker_symbol}"
+                logger.warning(f"NEWSSAVING: ⚠️ Missing/empty headline, using fallback: {headline}")
+            
+            # Sanitize headline (remove null bytes, control chars)
+            headline = sanitize_text(headline, field_name="headline", max_length=500)
+            
+            if not headline:  # If sanitization resulted in empty string
+                headline = f"[Sanitized empty] Article from {ticker_symbol}"
+                logger.warning(f"NEWSSAVING: ⚠️ Headline became empty after sanitization")
+            
+            # Get summary with fallback and sanitization
+            summary = str(article_data.get('summary', '')).strip()
+            if not summary:
+                summary = headline  # Use headline as summary if missing
+            summary = sanitize_text(summary, field_name="summary", max_length=2000)
+            
+            # Get URL with fallback and cleaning
+            url = str(article_data.get('url', '')).strip()
+            if not url:
+                # Generate a placeholder URL if missing
+                url = f"https://finnhub.io/article/{ticker_symbol}/{int(time.time())}"
+                logger.warning(f"NEWSSAVING: ⚠️ Missing URL, generated: {url}")
+            url = safe_url(url, max_length=500)
+
+            logger.info(f"NEWSSAVING: 📊 DATA ticker={ticker_symbol} headline_len={len(headline)} url_len={len(url)} impact={impact:.2f}")
+
+            # ============================================================
+            # 2. GET OR CREATE TICKER
+            # ============================================================
+            
+            ticker = None
             try:
-                # Finnhub provides Unix timestamp
-                published_timestamp = article_data['published']
-                if isinstance(published_timestamp, (int, float)):
-                    published_at = datetime.fromtimestamp(published_timestamp, tz=dt_timezone.utc)
-                else:
-                    published_at = parse_datetime(str(published_timestamp))
+                ticker = Ticker.objects.get(symbol=ticker_symbol)
+                logger.debug(f"NEWSSAVING: ✓ Ticker found: {ticker_symbol}")
+            except Ticker.DoesNotExist:
+                logger.warning(f"NEWSSAVING: ⚠️ Ticker {ticker_symbol} not found, trying QLD fallback")
+                try:
+                    ticker = Ticker.objects.get(symbol='QLD')
+                    logger.info(f"NEWSSAVING: ✓ Using QLD fallback for {ticker_symbol}")
+                except Ticker.DoesNotExist:
+                    # Last resort: create QLD ticker if it doesn't exist
+                    logger.warning("NEWSSAVING: ⚠️ QLD ticker missing! Creating it now...")
+                    ticker, created = Ticker.objects.get_or_create(
+                        symbol='QLD',
+                        defaults={'company_name': 'ProShares Ultra QQQ (2x Leveraged NASDAQ-100 ETF)'}
+                    )
+                    if created:
+                        logger.info("NEWSSAVING: ✓ Created QLD ticker")
+
+            # ============================================================
+            # 3. PARSE AND VALIDATE PUBLISHED DATE
+            # ============================================================
+            
+            published_at = None
+            if article_data.get('published'):
+                try:
+                    published_timestamp = article_data['published']
+                    if isinstance(published_timestamp, (int, float)):
+                        # Validate timestamp is in reasonable range
+                        if published_timestamp < 0 or published_timestamp > 4102444800:  # Year 2100
+                            logger.warning(f"NEWSSAVING: ⚠️ Timestamp out of range: {published_timestamp}, using now")
+                            published_at = timezone.now()
+                        else:
+                            published_at = datetime.fromtimestamp(published_timestamp, tz=dt_timezone.utc)
+                    else:
+                        published_at = parse_datetime(str(published_timestamp))
+                except Exception as e:
+                    logger.warning(f"NEWSSAVING: ⚠️ Date parse error: {e}, using now")
+            
+            if not published_at:
+                published_at = timezone.now()
+            
+            # Validate datetime is in reasonable range
+            if published_at.year < 1900 or published_at.year > 2100:
+                logger.warning(f"NEWSSAVING: ⚠️ Date year out of range: {published_at.year}, using now")
+                published_at = timezone.now()
+            
+            # Ensure timezone-aware
+            if timezone.is_naive(published_at):
+                published_at = timezone.make_aware(published_at)
+                logger.debug(f"NEWSSAVING: 🕐 Made datetime timezone-aware")
+
+            # ============================================================
+            # 4. GENERATE AND VALIDATE ARTICLE HASH
+            # ============================================================
+            
+            article_hash = None
+            try:
+                article_hash = get_article_hash(url)
+                # Validate hash is 32 chars (MD5 format)
+                if article_hash and len(article_hash) != 32:
+                    logger.warning(f"NEWSSAVING: ⚠️ Invalid hash length: {len(article_hash)}, regenerating")
+                    article_hash = None
             except Exception as e:
-                logger.warning(f"Error parsing published date: {e}")
+                logger.warning(f"NEWSSAVING: ⚠️ Hash generation error: {e}")
+            
+            if not article_hash:
+                # Fallback: generate hash from headline + timestamp
+                import hashlib
+                fallback_string = f"{headline}_{ticker_symbol}_{int(published_at.timestamp())}"
+                article_hash = hashlib.md5(fallback_string.encode('utf-8', errors='ignore')).hexdigest()
+                logger.warning(f"NEWSSAVING: ⚠️ Using fallback hash: {article_hash[:8]}")
 
-        if not published_at:
-            published_at = timezone.now()  # Fallback to current time
+            # ============================================================
+            # 5. VALIDATE AND CALCULATE SENTIMENT (NaN/Inf safe)
+            # ============================================================
+            
+            # Validate impact value
+            impact = safe_float(impact, field_name="impact", default=0.0, min_val=-100, max_val=100)
+            
+            weight = MARKET_CAP_WEIGHTS.get(ticker_symbol, 0.01)
+            if weight == 0 or weight is None:
+                weight = 0.01  # Prevent division by zero
+                logger.debug(f"NEWSSAVING: ⚠️ Weight was 0, using 0.01")
+            
+            # Calculate with overflow protection
+            try:
+                estimated_sentiment = impact / (weight * 100 * 100)
+                estimated_sentiment = safe_float(
+                    estimated_sentiment, 
+                    field_name="estimated_sentiment",
+                    default=0.0,
+                    min_val=-1.0,
+                    max_val=1.0
+                )
+            except (ZeroDivisionError, OverflowError) as e:
+                logger.warning(f"NEWSSAVING: ⚠️ Sentiment calc error: {e}, using 0.0")
+                estimated_sentiment = 0.0
 
-        # Generate article hash (same method as run_nasdaq_sentiment.py)
-        article_hash = get_article_hash(article_data['url'])
+            # ============================================================
+            # 6. SAVE TO DATABASE WITH COMPREHENSIVE LOGGING
+            # ============================================================
+            
+            logger.info(
+                f"NEWSSAVING: 💾 SAVING hash={article_hash[:8]} ticker={ticker_symbol} "
+                f"sentiment={estimated_sentiment:.3f} impact={impact:.2f}"
+            )
+            
+            # Validate all float fields one more time before save
+            safe_impact = safe_float(impact, "final_impact", 0.0, -100, 100)
+            safe_sentiment = safe_float(estimated_sentiment, "final_sentiment", 0.0, -1.0, 1.0)
+            
+            article, created = NewsArticle.objects.update_or_create(
+                article_hash=article_hash,
+                defaults={
+                    'ticker': ticker,
+                    'analysis_run': None,
+                    'headline': headline,
+                    'summary': summary,
+                    'source': 'Finnhub (Real-Time)',
+                    'url': url,
+                    'published_at': published_at,
+                    'article_type': 'company',
+                    'base_sentiment': safe_sentiment,
+                    'surprise_factor': 1.0,
+                    'novelty_score': 1.0,
+                    'source_credibility': 0.8,
+                    'recency_weight': 1.0,
+                    'article_score': safe_impact,
+                    'weighted_contribution': safe_impact,
+                    'is_analyzed': True,
+                    'sentiment_cached': False
+                }
+            )
 
-        # Calculate sentiment from impact (reverse the scaling)
-        # impact is capped at ±25, and comes from: sentiment * 100 * weight * 100
-        # For simplicity, estimate base_sentiment from impact
-        weight = MARKET_CAP_WEIGHTS.get(ticker_symbol, 0.01)
-        estimated_sentiment = impact / (weight * 100 * 100)
-        estimated_sentiment = max(-1.0, min(1.0, estimated_sentiment))  # Clip to -1/+1
+            # Success!
+            if created:
+                logger.info(
+                    f"NEWSSAVING: ✅ SAVED_NEW hash={article_hash[:8]} id={article.id} "
+                    f"ticker={ticker_symbol} headline={headline[:50]}..."
+                )
+            else:
+                logger.info(
+                    f"NEWSSAVING: ♻️ UPDATED hash={article_hash[:8]} id={article.id} ticker={ticker_symbol}"
+                )
 
-        # Save to database (update_or_create prevents duplicates)
-        article, created = NewsArticle.objects.update_or_create(
-            article_hash=article_hash,
-            defaults={
-                'ticker': ticker,
-                'analysis_run': None,  # Real-time articles don't have analysis_run
-                'headline': article_data.get('headline', '')[:500],  # Truncate if too long
-                'summary': article_data.get('summary', '')[:2000],
-                'source': 'Finnhub (Real-Time)',
-                'url': article_data.get('url', ''),
-                'published_at': published_at,
-                'article_type': 'company',
-                'base_sentiment': estimated_sentiment,
-                'surprise_factor': 1.0,  # Real-time scoring doesn't calculate these
-                'novelty_score': 1.0,
-                'source_credibility': 0.8,  # Finnhub is credible
-                'recency_weight': 1.0,
-                'article_score': impact,  # Use the calculated impact
-                'weighted_contribution': impact,
-                'is_analyzed': True,
-                'sentiment_cached': False  # Real-time articles are fresh
-            }
-        )
+            return article
 
-        if created:
-            logger.info(f"✓ Saved new article to database: {article_hash[:8]} [{ticker_symbol}]")
-        else:
-            logger.debug(f"✓ Updated existing article: {article_hash[:8]} [{ticker_symbol}]")
+        except IntegrityError as e:
+            # Constraint violation (unique, foreign key, etc.) - retry
+            error_msg = str(e).lower()
+            if 'unique constraint' in error_msg or 'duplicate key' in error_msg:
+                logger.warning(
+                    f"NEWSSAVING: 🔄 DUPLICATE hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'} "
+                    f"attempt={attempt + 1}/{max_retries}"
+                )
+            else:
+                logger.warning(
+                    f"NEWSSAVING: ⚠️ INTEGRITY_ERROR attempt={attempt + 1}/{max_retries} error={e}"
+                )
+            
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                logger.error(
+                    f"NEWSSAVING: ❌ FAILED_INTEGRITY hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'} "
+                    f"ticker={ticker_symbol if 'ticker_symbol' in locals() else 'unknown'} error={e}"
+                )
+                return None
 
-        return article
+        except OperationalError as e:
+            # Database connection, deadlock, timeout - retry
+            error_msg = str(e).lower()
+            if 'deadlock' in error_msg:
+                error_type = "DEADLOCK"
+            elif 'timeout' in error_msg or 'timed out' in error_msg:
+                error_type = "TIMEOUT"
+            elif 'connection' in error_msg:
+                error_type = "CONNECTION"
+            elif 'disk' in error_msg or 'space' in error_msg:
+                error_type = "DISK_FULL"
+            else:
+                error_type = "OPERATIONAL"
+            
+            logger.warning(
+                f"NEWSSAVING: 🔄 {error_type} attempt={attempt + 1}/{max_retries} "
+                f"hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'} "
+                f"retrying_in={retry_delay}s error={e}"
+            )
+            
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                logger.error(
+                    f"NEWSSAVING: ❌ FAILED_{error_type} after {max_retries} attempts "
+                    f"hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'} "
+                    f"ticker={ticker_symbol if 'ticker_symbol' in locals() else 'unknown'} error={e}",
+                    exc_info=True
+                )
+                return None
 
-    except Exception as e:
-        logger.error(f"Error saving article to database: {e}", exc_info=True)
-        # Don't raise - we don't want to break sentiment calculation if DB save fails
-        return None
+        except DatabaseError as e:
+            # General database errors (encoding, data type, etc.)
+            logger.error(
+                f"NEWSSAVING: ❌ DATABASE_ERROR attempt={attempt + 1}/{max_retries} "
+                f"hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'} "
+                f"ticker={ticker_symbol if 'ticker_symbol' in locals() else 'unknown'} error={e}",
+                exc_info=True
+            )
+            
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                return None
+
+        except MemoryError as e:
+            # Out of memory (very rare, but possible with huge articles)
+            logger.error(
+                f"NEWSSAVING: ❌ MEMORY_ERROR attempt={attempt + 1}/{max_retries} "
+                f"headline_len={len(headline) if 'headline' in locals() else 0} "
+                f"summary_len={len(summary) if 'summary' in locals() else 0} error={e}"
+            )
+            return None  # Don't retry memory errors
+
+        except Exception as e:
+            # Unexpected error - catch all
+            logger.error(
+                f"NEWSSAVING: ❌ UNEXPECTED_ERROR attempt={attempt + 1}/{max_retries} "
+                f"type={type(e).__name__} "
+                f"hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'} "
+                f"ticker={ticker_symbol if 'ticker_symbol' in locals() else 'unknown'} "
+                f"headline={headline[:50] if 'headline' in locals() else 'N/A'}... "
+                f"error={e}",
+                exc_info=True
+            )
+            
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                logger.error(
+                    f"NEWSSAVING: ❌ FAILED_ALL_RETRIES after {max_retries} attempts "
+                    f"hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'}"
+                )
+                return None
+    
+    # Should never reach here, but just in case
+    logger.error(
+        f"NEWSSAVING: ❌ FAILED_UNEXPECTED_EXIT hash={article_hash[:8] if 'article_hash' in locals() else 'unknown'}"
+    )
+    return None
 
 
 # ============================================================================
