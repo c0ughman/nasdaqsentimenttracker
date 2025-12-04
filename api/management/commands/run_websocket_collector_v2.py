@@ -807,9 +807,14 @@ class Command(BaseCommand):
                                 if self.ws:
                                     self.ws.close()
                         elif time_since_last_data > effective_threshold:
+                            # Log detailed diagnostics before closing
                             self.stdout.write(self.style.ERROR(
-                                f'❌ STALE CONNECTION: No data for {time_since_last_data:.0f}s (threshold: {effective_threshold}s)\n'
-                                f'   EODHD baseline is <50ms latency - this connection is dead.\n'
+                                f'❌ STALE CONNECTION DETECTED: No data for {time_since_last_data:.0f}s (threshold: {effective_threshold}s)\n'
+                                f'   Connection age: {connection_age:.0f}s\n'
+                                f'   Total ticks this connection: {self.total_ticks:,}\n'
+                                f'   Last data timestamp: {self.last_data_received_time}\n'
+                                f'   Current time: {current_time}\n'
+                                f'   EODHD baseline is <50ms latency - this connection appears dead.\n'
                                 f'   Forcing reconnect...'
                             ))
                             if self.ws:
