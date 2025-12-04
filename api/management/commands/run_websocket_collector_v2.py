@@ -758,8 +758,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('💓 Health monitor loop started'))
 
         last_health_log = 0
-        stale_threshold = 15  # Alert if no data for 15s (OPTIMIZED: was 60s)
-        check_interval = 5    # Check every 5s (OPTIMIZED: was 10s)
+        # Increased threshold: 15s was too aggressive - normal trading can have brief pauses
+        # 45s threshold catches real problems while allowing for natural market pauses
+        stale_threshold = 45  # Alert if no data for 45s (was 15s - too aggressive, causing false disconnects)
+        check_interval = 10   # Check every 10s (was 5s - less frequent checks reduce overhead)
 
         while self.running:
             try:
@@ -788,13 +790,13 @@ class Command(BaseCommand):
                     if self.last_data_received_time:
                         time_since_last_data = current_time - self.last_data_received_time
 
-                        # CRITICAL: Detect stale connections faster
-                        # But be more lenient for NEW connections (first 30 seconds)
+                        # CRITICAL: Detect stale connections
+                        # But be more lenient for NEW connections (first 60 seconds)
                         # New connections might take a few seconds to start receiving data
                         effective_threshold = stale_threshold
-                        if connection_age and connection_age < 30:
-                            # New connection - give it more time (30s grace period)
-                            effective_threshold = 30
+                        if connection_age and connection_age < 60:
+                            # New connection - give it more time (60s grace period for subscription to activate)
+                            effective_threshold = 60
                             if time_since_last_data > effective_threshold:
                                 self.stdout.write(self.style.ERROR(
                                     f'❌ STALE CONNECTION (NEW): No data for {time_since_last_data:.0f}s '
@@ -812,8 +814,8 @@ class Command(BaseCommand):
                             ))
                             if self.ws:
                                 self.ws.close()
-                    elif connection_age and connection_age > 30:
-                        # Connection established but never received data after 30 seconds
+                    elif connection_age and connection_age > 60:
+                        # Connection established but never received data after 60 seconds
                         self.stdout.write(self.style.ERROR(
                             f'❌ STALE CONNECTION: Connection established {connection_age:.0f}s ago but never received data\n'
                             f'   Likely subscription issue or server problem.\n'
