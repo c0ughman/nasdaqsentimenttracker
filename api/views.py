@@ -457,7 +457,7 @@ def news_articles(request):
                 'title': article.headline,
                 'summary': article.summary if article.summary else '',
                 'source': article.source,
-                'published_at': safe_isoformat(article.published_at),
+                'published_at': safe_isoformat(article.fetched_at),
                 'url': article.url if article.url else '',
                 'sentiment': get_sentiment_label(article.base_sentiment),
                 'sentiment_score': round(sentiment_score, 3)
