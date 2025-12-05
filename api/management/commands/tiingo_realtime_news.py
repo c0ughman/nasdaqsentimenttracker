@@ -99,7 +99,7 @@ ARTICLE_CACHE_KEY = 'tiingo_articles_processed'
 ARTICLE_CACHE_DURATION = 3600  # 1 hour
 
 # Queues for threading (same pattern as Finnhub)
-article_to_score_queue = queue.Queue(maxsize=100)  # Higher limit since polling less frequently
+article_to_score_queue = queue.Queue(maxsize=500)  # Increased to match database save queue capacity
 scored_article_queue = queue.Queue()
 database_save_queue = queue.Queue(maxsize=500)  # Articles to save to database (high limit)
 
@@ -1385,8 +1385,9 @@ def process_news_articles(articles, query_type, start_time=None, end_time=None):
                     logger.info(f"      📝 Queued: [{primary_ticker}] {title[:70]}...")
 
                 except queue.Full:
-                    logger.warning(f"      ⚠️  Queue FULL (100 items), skipping remaining articles")
-                    break  # Stop processing if queue is full
+                    logger.warning(f"      ⚠️  Queue FULL (500 items), skipping this article (queue will drain)")
+                    # Continue processing - queue drains asynchronously, might have space for next article
+                    continue
 
             except Exception as e:
                 logger.error(f"Error processing individual article: {e}")
