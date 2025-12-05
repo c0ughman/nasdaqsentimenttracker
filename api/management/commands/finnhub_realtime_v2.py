@@ -1006,14 +1006,14 @@ def query_finnhub_for_news():
         _api_calls_this_minute.append(now)
         _last_query_time = now
         
-        # Query Finnhub for company news (last 1 day)
+        # Query Finnhub for company news (current calendar day only)
         today = datetime.now()
-        yesterday = today - timedelta(days=1)
+        today_date = today.date()
         
         articles = client.company_news(
             symbol,
-            _from=yesterday.strftime('%Y-%m-%d'),
-            to=today.strftime('%Y-%m-%d')
+            _from=today_date.strftime('%Y-%m-%d'),
+            to=today_date.strftime('%Y-%m-%d')
         )
         
         # Reset consecutive errors on success

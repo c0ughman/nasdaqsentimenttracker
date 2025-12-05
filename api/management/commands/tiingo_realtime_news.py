@@ -1074,22 +1074,24 @@ def query_tiingo_for_news():
                 'error': 'client_unavailable'
             }
 
-        # Determine time window (rolling window based on TIME_WINDOW_HOURS)
+        # Determine time window (current calendar day only - start of today to now)
         now = timezone.now()
-        start_time = now - timedelta(hours=TIME_WINDOW_HOURS)
+        # Start of current calendar day (00:00:00) in UTC
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_time = today_start
+        end_time = now
         
-        # For Tiingo News API: Query last 2 days to handle timezone/indexing issues
-        # API uses date-only format, so we query a bit broader then filter by publishedDate
-        start_date_for_api = (now - timedelta(days=1)).date()  # Yesterday
-        end_date_for_api = now.date()  # Today
+        # For Tiingo News API: Query only current calendar day
+        # API uses date-only format, so we query today then filter by publishedDate
+        start_date_for_api = now.date()  # Today only
+        end_date_for_api = now.date()  # Today only
 
         # Extra logging about the computed time window
         logger.info(
             "Tiingo query window: "
-            f"hours={TIME_WINDOW_HOURS}, "
-            f"start={start_time.isoformat()}, "
-            f"end={now.isoformat()}, "
-            f"delta_sec={(now - start_time).total_seconds():.1f}"
+            f"start={start_time.isoformat()} (start of today), "
+            f"end={end_time.isoformat()}, "
+            f"delta_sec={(end_time - start_time).total_seconds():.1f}"
         )
 
         # Format dates for Tiingo API (date-only format required)
@@ -1098,11 +1100,11 @@ def query_tiingo_for_news():
         
         # For display/logging, show the actual time window we want
         start_datetime_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ')
-        end_datetime_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_datetime_str = end_time.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         msg1 = f"📰 TIINGO QUERY #{_query_count + 1} START: Target window {start_datetime_str} to {end_datetime_str}"
         msg2 = f"   API query: NO date parameters (getting latest news, limit=1000)"
-        msg3 = f"   Will filter by publishedDate to get articles from last 24 hours"
+        msg3 = f"   Will filter by publishedDate to get articles from current calendar day only"
         logger.info(msg1)
         logger.info(msg2)
         logger.info(msg3)
@@ -1141,7 +1143,7 @@ def query_tiingo_for_news():
 
             if news_data and isinstance(news_data, list):
                 total_articles_found += len(news_data)
-                queued_count += process_news_articles(news_data, 'ticker_query', start_time, now)
+                queued_count += process_news_articles(news_data, 'ticker_query', start_time, end_time)
                 msg = f"   ✓ Ticker query: {len(news_data)} articles found, {queued_count} new articles queued"
                 logger.info(msg)
                 print(msg)  # Ensure appears in Railway logs
@@ -1180,7 +1182,7 @@ def query_tiingo_for_news():
             market_queued = 0
             if market_news and isinstance(market_news, list):
                 total_articles_found += len(market_news)
-                market_queued = process_news_articles(market_news, 'market_query', start_time, now)
+                market_queued = process_news_articles(market_news, 'market_query', start_time, end_time)
                 queued_count += market_queued
                 msg = f"   ✓ Market query: {len(market_news)} articles found, {market_queued} new articles queued"
                 logger.info(msg)
@@ -1218,7 +1220,7 @@ def query_tiingo_for_news():
             sector_queued = 0
             if sector_news and isinstance(sector_news, list):
                 total_articles_found += len(sector_news)
-                sector_queued = process_news_articles(sector_news, 'sector_query', start_time, now)
+                sector_queued = process_news_articles(sector_news, 'sector_query', start_time, end_time)
                 queued_count += sector_queued
                 msg = f"   ✓ Sector query: {len(sector_news)} articles found, {sector_queued} new articles queued"
                 logger.info(msg)
