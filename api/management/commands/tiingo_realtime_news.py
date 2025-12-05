@@ -1320,7 +1320,7 @@ def process_news_articles(articles, query_type, start_time=None, end_time=None):
                     logger.debug(f"Skipping article with invalid URL: {url[:50]}")
                     continue
 
-                # Filter by time window if provided
+                # Filter by current calendar day (date comparison, not datetime)
                 published_date_str = article.get('publishedDate', '')
                 if start_time and end_time:
                     if published_date_str:
@@ -1332,15 +1332,18 @@ def process_news_articles(articles, query_type, start_time=None, end_time=None):
                                 if timezone.is_naive(published_at):
                                     published_at = published_at.replace(tzinfo=dt_timezone.utc)
                                 
-                                # Filter: only include articles within our time window
-                                if published_at < start_time or published_at > end_time:
+                                # Filter: only include articles from current calendar day (date comparison)
+                                # Compare dates, not datetimes, to avoid timezone issues
+                                published_date = published_at.date()
+                                today_date = end_time.date()  # Use end_time (now) to get today's date
+                                
+                                if published_date != today_date:
                                     filtered_by_time += 1
                                     # Log first few filtered articles for debugging
                                     if filtered_by_time <= 3:
                                         logger.info(
-                                            f"      ⏰ Filtered by time: {title[:60]}... "
-                                            f"(published: {published_at.isoformat()}, "
-                                            f"window: {start_time.isoformat()} to {end_time.isoformat()})"
+                                            f"      ⏰ Filtered by date: {title[:60]}... "
+                                            f"(published: {published_date}, today: {today_date})"
                                         )
                                     continue
                         except Exception as e:

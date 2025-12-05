@@ -1023,7 +1023,7 @@ def query_finnhub_for_news():
         total_returned = len(articles) if isinstance(articles, list) else 0
         logger.info(
             f"FINNHUB QUERY: symbol={symbol}, "
-            f"from={yesterday.strftime('%Y-%m-%d')} to={today.strftime('%Y-%m-%d')}, "
+            f"from={today_date.strftime('%Y-%m-%d')} to={today_date.strftime('%Y-%m-%d')}, "
             f"articles_returned={total_returned}, "
             f"api_calls_last_60s={len(_api_calls_this_minute)}"
         )
@@ -1035,9 +1035,48 @@ def query_finnhub_for_news():
                 'queued_for_scoring': 0
             }
         
+        # Filter articles to current calendar day only (API might return articles from other days due to timezone)
+        today_start_utc = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end_utc = timezone.now()
+        filtered_articles = []
+        filtered_count = 0
+        
+        for article in articles:
+            # Check published date
+            article_datetime = article.get('datetime', 0)
+            if article_datetime:
+                try:
+                    if isinstance(article_datetime, (int, float)):
+                        # Unix timestamp
+                        published_at = datetime.fromtimestamp(article_datetime, tz=dt_timezone.utc)
+                    else:
+                        # Try parsing as string
+                        from django.utils.dateparse import parse_datetime
+                        published_at = parse_datetime(str(article_datetime))
+                        if published_at and timezone.is_naive(published_at):
+                            published_at = published_at.replace(tzinfo=dt_timezone.utc)
+                    
+                    # Filter: only include articles published today (current calendar day)
+                    if published_at and (published_at.date() != today_date):
+                        filtered_count += 1
+                        if filtered_count <= 3:
+                            logger.info(
+                                f"FINNHUB FILTER: Skipping article from {published_at.date()}: "
+                                f"{article.get('headline', '')[:60]}..."
+                            )
+                        continue
+                except Exception as e:
+                    logger.debug(f"Error parsing article datetime {article_datetime}: {e}")
+                    # If we can't parse, allow through (better to include than exclude)
+            
+            filtered_articles.append(article)
+        
+        if filtered_count > 0:
+            logger.info(f"FINNHUB FILTER: Filtered out {filtered_count} articles not from today")
+        
         # Process all new articles (queue overflow protection handles excess)
         queued = 0
-        for article in articles:
+        for article in filtered_articles:
             url = article.get('url', '')
             
             if not url or is_article_processed(url):
