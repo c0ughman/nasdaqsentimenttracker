@@ -79,10 +79,15 @@ ARTICLE_CACHE_DURATION = 3600  # 1 hour
 # Queues for threading
 article_to_score_queue = queue.Queue(maxsize=50)  # Articles needing scoring (capped to prevent memory exhaustion)
 scored_article_queue = queue.Queue()  # Articles that have been scored
+database_save_queue = queue.Queue(maxsize=500)  # Articles to save to database (high limit)
 
 # Scoring thread
 _scoring_thread = None
 _scoring_thread_running = False
+
+# Database save worker thread (NEW)
+_save_worker_thread = None
+_save_worker_running = False
 
 
 # ============================================================================
@@ -685,25 +690,171 @@ def scoring_worker():
                 article_data['symbol']
             )
 
-            # Save article to database (NEW)
-            try:
-                save_article_to_db(article_data, impact)
-            except Exception as e:
-                logger.error(f"Error saving article to database: {e}", exc_info=True)
-                # Continue even if save fails - don't break sentiment calculation
-
-            # Put result in scored queue
+            # ⚡ PRIORITY 1: Put impact in scored queue IMMEDIATELY (sentiment update)
             scored_article_queue.put(impact)
+            logger.info(f"SCORING: ✅ Scored and queued impact: {article_data['symbol']} impact={impact:+.2f}")
+
+            # ⚡ PRIORITY 2: Queue for database save (async, non-blocking)
+            try:
+                save_job = {
+                    'article_data': article_data,
+                    'impact': impact,
+                    'queued_time': timezone.now(),
+                    'article_hash': get_article_hash(article_data['url'])
+                }
+                database_save_queue.put_nowait(save_job)
+                logger.info(f"SAVEQUEUE: 📝 Queued for save: {article_data['symbol']} hash={save_job['article_hash'][:8]}")
+            except queue.Full:
+                logger.error(f"SAVEQUEUE: ❌ QUEUE_FULL (500 items) - cannot queue save for {article_data['symbol']}")
 
             # Mark as processed
             mark_article_processed(article_data['url'])
-
-            logger.info(f"Article scored and queued: {article_data['symbol']} impact={impact:+.2f}")
 
         except Exception as e:
             logger.error(f"Error in scoring worker: {e}", exc_info=True)
 
     logger.info("Article scoring thread stopped")
+
+
+def database_save_worker():
+    """
+    Dedicated background thread for database saves.
+    Processes saves from queue with deadline enforcement and comprehensive logging.
+    """
+    global _save_worker_running
+    
+    logger.info("=" * 80)
+    logger.info("DATABASE SAVE WORKER: 🚀 STARTED")
+    logger.info("=" * 80)
+    
+    saves_succeeded = 0
+    saves_failed = 0
+    saves_deadline_exceeded = 0
+    
+    while _save_worker_running:
+        try:
+            # Get save job from queue (block for up to 1 second)
+            try:
+                save_job = database_save_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+            
+            article_data = save_job['article_data']
+            impact = save_job['impact']
+            queued_time = save_job['queued_time']
+            article_hash = save_job['article_hash']
+            
+            # Calculate time in queue
+            now = timezone.now()
+            wait_time = (now - queued_time).total_seconds()
+            
+            logger.info(
+                f"SAVEQUEUE: 🔄 Processing save job: hash={article_hash[:8]} "
+                f"ticker={article_data.get('symbol')} wait_time={wait_time:.2f}s"
+            )
+            
+            # Check deadline (60 seconds max)
+            deadline_seconds = 60
+            if wait_time > deadline_seconds:
+                saves_deadline_exceeded += 1
+                logger.error(
+                    f"SAVEQUEUE: ⏰ DEADLINE_EXCEEDED hash={article_hash[:8]} "
+                    f"wait_time={wait_time:.1f}s > deadline={deadline_seconds}s "
+                    f"ticker={article_data.get('symbol')} "
+                    f"total_exceeded={saves_deadline_exceeded}"
+                )
+                database_save_queue.task_done()
+                continue
+            
+            # Attempt save with fast retries
+            remaining_time = deadline_seconds - wait_time
+            max_attempts = 3
+            retry_delay = 0.1  # Start with 100ms
+            save_succeeded = False
+            
+            for attempt in range(max_attempts):
+                try:
+                    logger.info(
+                        f"SAVEQUEUE: 💾 SAVE_ATTEMPT attempt={attempt+1}/{max_attempts} "
+                        f"hash={article_hash[:8]} ticker={article_data.get('symbol')} "
+                        f"remaining_time={remaining_time:.2f}s"
+                    )
+                    
+                    # Call the existing save function
+                    article = save_article_to_db(article_data, impact)
+                    
+                    if article:
+                        total_time = (timezone.now() - queued_time).total_seconds()
+                        saves_succeeded += 1
+                        logger.info(
+                            f"SAVEQUEUE: ✅ SAVE_SUCCESS hash={article_hash[:8]} "
+                            f"id={article.id} ticker={article_data.get('symbol')} "
+                            f"total_time={total_time:.2f}s attempt={attempt+1} "
+                            f"success_count={saves_succeeded}"
+                        )
+                        save_succeeded = True
+                        break
+                    else:
+                        logger.warning(
+                            f"SAVEQUEUE: ⚠️ SAVE_RETURNED_NONE attempt={attempt+1}/{max_attempts} "
+                            f"hash={article_hash[:8]}"
+                        )
+                        
+                except Exception as e:
+                    logger.error(
+                        f"SAVEQUEUE: ❌ SAVE_EXCEPTION attempt={attempt+1}/{max_attempts} "
+                        f"hash={article_hash[:8]} ticker={article_data.get('symbol')} "
+                        f"error={type(e).__name__}: {str(e)[:100]}"
+                    )
+                
+                # Check if we have time to retry
+                remaining_time = deadline_seconds - (timezone.now() - queued_time).total_seconds()
+                if remaining_time <= 0:
+                    logger.error(f"SAVEQUEUE: ⏰ NO_TIME_FOR_RETRY hash={article_hash[:8]}")
+                    break
+                
+                # Retry with exponential backoff (but respect deadline)
+                if attempt < max_attempts - 1:
+                    sleep_time = min(retry_delay, remaining_time - 0.1)  # Leave 100ms buffer
+                    if sleep_time > 0:
+                        logger.info(f"SAVEQUEUE: 🔄 RETRY_DELAY sleep={sleep_time:.2f}s attempt={attempt+1}")
+                        time.sleep(sleep_time)
+                        retry_delay = min(retry_delay * 1.5, 2.0)  # Cap at 2s
+            
+            # Final status
+            if not save_succeeded:
+                saves_failed += 1
+                total_time = (timezone.now() - queued_time).total_seconds()
+                logger.error(
+                    f"SAVEQUEUE: ❌ SAVE_FAILED_ALL_ATTEMPTS hash={article_hash[:8]} "
+                    f"ticker={article_data.get('symbol')} "
+                    f"attempts={max_attempts} total_time={total_time:.2f}s "
+                    f"failed_count={saves_failed}"
+                )
+            
+            # Log queue status periodically
+            queue_size = database_save_queue.qsize()
+            if queue_size > 100:
+                logger.warning(
+                    f"SAVEQUEUE: ⚠️ QUEUE_LARGE size={queue_size} "
+                    f"success={saves_succeeded} failed={saves_failed} exceeded={saves_deadline_exceeded}"
+                )
+            
+            database_save_queue.task_done()
+            
+        except Exception as e:
+            logger.error(
+                f"SAVEQUEUE: ❌ WORKER_ERROR unexpected error in save worker: {e}",
+                exc_info=True
+            )
+    
+    # Thread stopping
+    logger.info("=" * 80)
+    logger.info(
+        f"DATABASE SAVE WORKER: 🛑 STOPPED | "
+        f"Success: {saves_succeeded} | Failed: {saves_failed} | Deadline exceeded: {saves_deadline_exceeded}"
+    )
+    logger.info("=" * 80)
 
 
 def start_scoring_thread():
@@ -728,6 +879,39 @@ def stop_scoring_thread():
     if _scoring_thread:
         _scoring_thread.join(timeout=5.0)
     logger.info("Scoring thread stopped")
+
+
+def start_save_worker_thread():
+    """Start the dedicated database save worker thread."""
+    global _save_worker_thread, _save_worker_running
+    
+    if _save_worker_thread and _save_worker_thread.is_alive():
+        logger.warning("SAVEQUEUE: ⚠️ Save worker thread already running")
+        return
+    
+    _save_worker_running = True
+    _save_worker_thread = threading.Thread(target=database_save_worker, daemon=True)
+    _save_worker_thread.start()
+    logger.info("SAVEQUEUE: 🚀 Save worker thread started")
+
+
+def stop_save_worker_thread():
+    """Stop the database save worker thread."""
+    global _save_worker_running
+    
+    logger.info("SAVEQUEUE: 🛑 Stopping save worker thread...")
+    _save_worker_running = False
+    
+    # Wait for queue to drain (max 5 seconds)
+    if _save_worker_thread:
+        try:
+            database_save_queue.join()
+            logger.info("SAVEQUEUE: ✅ Queue drained successfully")
+        except Exception as e:
+            logger.warning(f"SAVEQUEUE: ⚠️ Error draining queue: {e}")
+        
+        _save_worker_thread.join(timeout=5.0)
+        logger.info("SAVEQUEUE: 🛑 Save worker thread stopped")
 
 
 # ============================================================================
@@ -948,7 +1132,9 @@ def get_stats():
         'current_symbol': WATCHLIST[_current_index % len(WATCHLIST)] if _current_index > 0 else None,
         'queue_size': article_to_score_queue.qsize(),
         'scored_queue_size': scored_article_queue.qsize(),
-        'scoring_thread_alive': _scoring_thread.is_alive() if _scoring_thread else False
+        'save_queue_size': database_save_queue.qsize(),
+        'scoring_thread_alive': _scoring_thread.is_alive() if _scoring_thread else False,
+        'save_worker_alive': _save_worker_thread.is_alive() if _save_worker_thread else False
     }
 
 
@@ -969,7 +1155,10 @@ def initialize():
     # Start scoring thread
     start_scoring_thread()
     
-    logger.info("Finnhub integration initialized")
+    # Start database save worker thread
+    start_save_worker_thread()
+    
+    logger.info("Finnhub integration initialized (scoring + save worker threads running)")
     return True
 
 
