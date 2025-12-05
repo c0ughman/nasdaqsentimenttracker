@@ -1035,9 +1035,9 @@ def query_finnhub_for_news():
                 'queued_for_scoring': 0
             }
         
-        # Process new articles (top 3 only)
+        # Process all new articles (queue overflow protection handles excess)
         queued = 0
-        for article in articles[:3]:
+        for article in articles:
             url = article.get('url', '')
             
             if not url or is_article_processed(url):
