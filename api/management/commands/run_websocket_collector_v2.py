@@ -86,6 +86,7 @@ class Command(BaseCommand):
         # News threads (initialize to None for safety)
         self.news_thread = None
         self.tiingo_thread = None
+        self.rss_thread = None
 
         # Statistics
         self.total_ticks = 0
@@ -326,6 +327,15 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.NOTICE(f'📰 Tiingo disabled ({str(e)})'))
 
+        # Initialize RSS real-time news (optional - controlled by env flag and fails gracefully)
+        try:
+            from api.management.commands.rss_realtime_news import initialize as init_rss
+            if init_rss():
+                self.stdout.write(self.style.SUCCESS('📰 RSS real-time news enabled'))
+            else:
+                self.stdout.write(self.style.NOTICE('📰 RSS disabled (ENABLE_RSS_NEWS=False or feeds not configured)'))
+        except Exception as e:
+            self.stdout.write(self.style.NOTICE(f'📰 RSS disabled ({str(e)})'))
 
         # Signal handlers
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -692,6 +702,20 @@ class Command(BaseCommand):
             # If Tiingo isn't configured or errors, log and continue without breaking collector
             self.stdout.write(self.style.NOTICE(f'📰 Tiingo news loop not started: {e}'))
 
+        # Start RSS news loop (non-blocking, optional, gated by env flag)
+        try:
+            from api.management.commands.rss_realtime_news import ENABLE_RSS_NEWS
+            if ENABLE_RSS_NEWS:
+                if not hasattr(self, 'rss_thread') or self.rss_thread is None or not self.rss_thread.is_alive():
+                    self.rss_thread = threading.Thread(target=self.rss_news_loop, daemon=True)
+                    self.rss_thread.start()
+                    self.stdout.write(self.style.SUCCESS('📰 RSS news loop started (1-second rotation)'))
+            else:
+                self.stdout.write(self.style.NOTICE('📰 RSS news loop disabled (ENABLE_RSS_NEWS=False)'))
+        except Exception as e:
+            # If RSS isn't configured or errors, log and continue without breaking collector
+            self.stdout.write(self.style.NOTICE(f'📰 RSS news loop not started: {e}'))
+
     def sentiment_calculation_loop(self):
         """
         Async sentiment calculation loop - runs every second.
@@ -923,6 +947,46 @@ class Command(BaseCommand):
             time.sleep(5)
 
         self.stdout.write(self.style.NOTICE('📰 Tiingo news loop stopped'))
+
+    def rss_news_loop(self):
+        """Run every second to fetch RSS news (non-blocking)"""
+        self.stdout.write(self.style.SUCCESS('📰 RSS news loop started'))
+
+        # RSS loop runs independently of WebSocket state
+        # Only check self.running flag (set to False when collector shuts down)
+        while self.running:
+            try:
+                from api.management.commands.rss_realtime_news import query_rss_for_news
+
+                # Query RSS (polls one feed per call in rotation)
+                # This function manages its own feed rotation and puts articles into a queue
+                rss_result = query_rss_for_news()
+
+                if rss_result.get('queued_for_scoring', 0) > 0:
+                    self.stdout.write(self.style.SUCCESS(
+                        f'📰 RSS: Queued {rss_result["queued_for_scoring"]} articles for scoring '
+                        f'(found {rss_result.get("articles_found", 0)} from {rss_result.get("feeds_polled", 0)} feed(s))'
+                    ))
+                elif rss_result.get('error'):
+                    # Log errors only in verbose mode to avoid spam
+                    if self.verbose:
+                        self.stdout.write(self.style.WARNING(f'⚠️ RSS query error: {rss_result.get("error")}'))
+                elif rss_result.get('reason') == 'disabled':
+                    # RSS is disabled, stop the loop
+                    self.stdout.write(self.style.NOTICE('📰 RSS disabled, stopping loop'))
+                    break
+
+            except Exception as e:
+                # ALWAYS log errors - this is critical for diagnosing issues
+                self.stdout.write(self.style.ERROR(f'❌ RSS news loop exception: {e}'))
+                import traceback
+                self.stdout.write(self.style.ERROR(f'   Traceback: {traceback.format_exc()}'))
+                # Continue running even on errors
+
+            # Sleep 1 second (RSS polling interval)
+            time.sleep(1)
+
+        self.stdout.write(self.style.NOTICE('📰 RSS news loop stopped'))
 
     def aggregation_loop(self):
         """Run every second on the dot to create 1-second candles"""

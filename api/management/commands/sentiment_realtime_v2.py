@@ -453,6 +453,23 @@ def update_realtime_sentiment(last_60_snapshots, ticker_symbol='QLD', force_macr
         except Exception as e:
             logger.error(f"Error getting Tiingo scored articles: {e}")
 
+        # Check for newly scored articles (from RSS thread)
+        try:
+            from api.management.commands.rss_realtime_news import get_scored_articles as get_rss_scored_articles
+            rss_impacts = get_rss_scored_articles()
+            if rss_impacts:
+                total_rss = sum(rss_impacts)
+                logger.info(
+                    f"RSS_IMPACTS: count={len(rss_impacts)}, total={total_rss:+.2f}"
+                )
+                for article_impact in rss_impacts:
+                    news_updated += article_impact
+                    logger.info(f"Applied RSS article impact: {article_impact:+.2f}")
+        except ImportError:
+            logger.debug("RSS integration not available")
+        except Exception as e:
+            logger.error(f"Error getting RSS scored articles: {e}")
+
         # Clip news to range
         news_before_clip = news_updated
         news_updated = float(np.clip(news_updated, -100, 100))

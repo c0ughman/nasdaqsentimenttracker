@@ -1,0 +1,85 @@
+{
+  "feeds": [
+    {
+      "url": "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^IXIC&region=US&lang=en-US",
+      "source": "Yahoo Finance NASDAQ"
+    },
+    {
+      "url": "https://www.cnbc.com/id/15839135/device/rss/rss.html",
+      "source": "CNBC Markets"
+    },
+    {
+      "url": "https://www.marketwatch.com/rss/topstories",
+      "source": "MarketWatch"
+    },
+    {
+      "url": "https://feeds.bloomberg.com/markets/news.rss",
+      "source": "Bloomberg Markets"
+    },
+    {
+      "url": "https://www.investing.com/rss/news.rss",
+      "source": "Investing.com"
+    },
+    {
+      "url": "https://www.nasdaq.com/feed/rssoutbound?category=Markets",
+      "source": "NASDAQ Markets"
+    },
+    {
+      "url": "https://www.nasdaq.com/feed/rssoutbound?category=Stocks",
+      "source": "NASDAQ Stocks"
+    },
+    {
+      "url": "https://finance.yahoo.com/news/rssindex",
+      "source": "Yahoo Finance"
+    },
+    {
+      "url": "https://seekingalpha.com/api/sa/combined/QQQ.xml",
+      "source": "Seeking Alpha QQQ"
+    },
+    {
+      "url": "https://seekingalpha.com/feed.xml",
+      "source": "Seeking Alpha"
+    },
+    {
+      "url": "https://www.wsj.com/xml/rss/3_7014.xml",
+      "source": "WSJ Markets"
+    },
+    {
+      "url": "https://www.reuters.com/finance/markets/rss",
+      "source": "Reuters Markets"
+    },
+    {
+      "url": "https://www.fool.com/feeds/index.aspx",
+      "source": "Motley Fool"
+    },
+    {
+      "url": "https://www.investors.com/feed/",
+      "source": "Investors Business Daily"
+    },
+    {
+      "url": "https://www.benzinga.com/feed",
+      "source": "Benzinga"
+    },
+    {
+      "url": "https://thefly.com/news.php?rss=1",
+      "source": "TheFly"
+    },
+    {
+      "url": "https://www.barrons.com/rss",
+      "source": "Barron's"
+    },
+    {
+      "url": "https://www.ft.com/rss/markets",
+      "source": "Financial Times Markets"
+    },
+    {
+      "url": "https://www.zacks.com/rss/stock-rating.rss",
+      "source": "Zacks Stock Ratings"
+    },
+    {
+      "url": "https://www.thestreet.com/rss",
+      "source": "TheStreet"
+    }
+  ]
+}
+

@@ -104,6 +104,64 @@ Restart WebSocket collector to apply changes.
 
 ---
 
+## RSS News Collection (Optional)
+
+The system now supports RSS feed integration for additional real-time news coverage.
+
+### Enable RSS News:
+
+1. **Set environment variable:**
+   ```bash
+   ENABLE_RSS_NEWS=True
+   ```
+
+2. **Configure RSS feeds:**
+   Edit `config/rss_feeds.json` to add/remove feeds:
+   ```json
+   {
+     "feeds": [
+       {
+         "url": "https://feeds.finance.yahoo.com/rss/2.0/headline?s=^IXIC&region=US&lang=en-US",
+         "source": "Yahoo Finance NASDAQ"
+       },
+       {
+         "url": "https://www.cnbc.com/id/15839135/device/rss/rss.html",
+         "source": "CNBC Markets"
+       }
+     ]
+   }
+   ```
+
+3. **Install dependency:**
+   ```bash
+   pip install feedparser
+   ```
+
+4. **Start collector:**
+   The RSS collector automatically starts when `ENABLE_RSS_NEWS=True` and polls feeds every second in rotation.
+
+### How It Works:
+- **Rotation-based**: Polls one feed per second to avoid overwhelming sources
+- **Current day only**: Filters articles to current calendar day
+- **Duplicate detection**: Uses URL hashing to prevent re-processing
+- **Same scoring**: Articles scored with OpenAI like Finnhub/Tiingo
+- **Full isolation**: RSS failures won't affect WebSocket or other collectors
+
+### Monitoring:
+Look for these log messages:
+```
+📰 RSS real-time news enabled
+📰 RSS news loop started (1-second rotation)
+📰 RSS: Queued 3 articles for scoring (found 5 from 1 feed(s))
+RSSNEWS: Scored AAPL article: sentiment=+0.45, impact=+8.20
+RSS_IMPACTS: count=3, total=+12.50
+```
+
+### Add More Feeds:
+Simply add URLs to `config/rss_feeds.json` and restart the collector. The system comes pre-configured with 20 major financial news RSS feeds.
+
+---
+
 ## Troubleshooting
 
 ### ❌ "No sentiment data available"
