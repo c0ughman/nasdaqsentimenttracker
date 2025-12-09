@@ -693,10 +693,28 @@ Just the number, nothing else.
         weighted_contribution = article_score * weight
         impact = weighted_contribution * 100
 
-        # Cap at ±5 per article (adjusted for higher volume - 5000 articles/day vs 400)
-        impact = max(-5, min(5, impact))
-        
-        logger.info(f"RSSNEWS: Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f}")
+        # Tiered impact caps based on sentiment strength (reduces noise, amplifies strong signals)
+        abs_sentiment = abs(sentiment)
+        if abs_sentiment < 0.2:
+            # Filter out weak/neutral sentiment (noise reduction)
+            impact = 0.0
+            logger.info(f"RSSNEWS: Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f} (filtered: weak)")
+        elif abs_sentiment < 0.4:
+            # Weak signal
+            impact = max(-2, min(2, impact))
+            logger.info(f"RSSNEWS: Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f} (weak)")
+        elif abs_sentiment < 0.6:
+            # Moderate signal
+            impact = max(-5, min(5, impact))
+            logger.info(f"RSSNEWS: Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f} (moderate)")
+        elif abs_sentiment < 0.8:
+            # Strong signal
+            impact = max(-15, min(15, impact))
+            logger.info(f"RSSNEWS: Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f} (strong)")
+        else:
+            # Critical news (very strong sentiment)
+            impact = max(-25, min(25, impact))
+            logger.info(f"RSSNEWS: Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f} (critical)")
         
         return float(impact)
     
