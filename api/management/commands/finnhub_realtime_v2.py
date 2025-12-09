@@ -649,9 +649,9 @@ def score_article_with_ai(headline, summary, symbol):
         
         # Scale by 100 (to match run_nasdaq_sentiment.py normalization)
         impact = weighted_contribution * 100
-        
-        # Cap at ±25 per article (to prevent single-article spikes)
-        impact = max(-25, min(25, impact))
+
+        # Cap at ±5 per article (adjusted for higher volume - 5000 articles/day vs 400)
+        impact = max(-5, min(5, impact))
         
         logger.info(f"Scored {symbol} article: sentiment={sentiment:+.2f}, impact={impact:+.2f}")
         

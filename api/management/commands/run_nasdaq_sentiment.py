@@ -817,16 +817,16 @@ def analyze_article_sentiment(article, ticker_obj, article_type='company', base_
     surprise_factor = calculate_surprise_factor(f"{headline} {summary}")
     source_credibility = get_source_credibility(source)
 
-    # Calculate article score using amplified weighted formula
-    # AMPLIFIED SCORING: 3x multipliers for better visibility and movement
-    # Base sentiment: -250 to +250 (was -70 to +70)
-    # Surprise factor: 0 to +50 (was -7.5 to +37.5)
-    # Source credibility: -25 to +25 (was 0 to +3)
-    # Typical range: -325 to +325 (before market cap weighting)
+    # Calculate article score using weighted formula
+    # ADJUSTED SCORING: Reduced multipliers for higher volume (5000 articles/day vs 400)
+    # Base sentiment: -100 to +100 (reduced from -250 to +250)
+    # Surprise factor: 0 to +20 (reduced from 0 to +50)
+    # Source credibility: -10 to +10 (reduced from -25 to +25)
+    # Typical range: -130 to +130 (before market cap weighting)
     article_score = (
-        base_sentiment * ARTICLE_WEIGHTS['base_sentiment'] * 250 +
-        (surprise_factor - 1) * ARTICLE_WEIGHTS['surprise_factor'] * 150 +
-        (source_credibility - 0.5) * ARTICLE_WEIGHTS['source_credibility'] * 50
+        base_sentiment * ARTICLE_WEIGHTS['base_sentiment'] * 100 +
+        (surprise_factor - 1) * ARTICLE_WEIGHTS['surprise_factor'] * 50 +
+        (source_credibility - 0.5) * ARTICLE_WEIGHTS['source_credibility'] * 20
     )
 
     # Convert timestamp to timezone-aware datetime
@@ -1699,14 +1699,13 @@ def run_nasdaq_composite_analysis(finnhub_client):
     new_article_impact_raw = total_weighted_contribution / article_count if article_count > 0 else 0.0
     
     # Normalize new_article_impact to match the -100/+100 scale of decayed_score
-    # Typical article_score range: -325 to +325, weighted contributions: ~-46 to +46 per article
-    # After averaging 196 articles: roughly -0.25 to +0.25 range
-    # To normalize to -100/+100 scale: multiply by ~400 (but we cap per-run impact at ±25 points)
-    # Scale factor: max expected new_article_impact_raw is ~0.25, target cap is 25, so factor = 100
+    # Typical article_score range: -130 to +130, weighted contributions: ~-18 to +18 per article
+    # After averaging articles: need to normalize to -100/+100 scale
+    # Scale factor adjusted for higher volume (5000 articles/day vs 400)
     new_article_impact = new_article_impact_raw * 100
-    
-    # Cap per-run impact at ±25 to prevent single-run spikes (now in -100/+100 scale)
-    new_article_impact = max(-25, min(25, new_article_impact))
+
+    # Cap per-run impact at ±5 to prevent single-run spikes (adjusted for higher volume)
+    new_article_impact = max(-5, min(5, new_article_impact))
 
     # Combine decayed score + new article impact (both now in -100/+100 scale)
     news_composite = decayed_score + new_article_impact
