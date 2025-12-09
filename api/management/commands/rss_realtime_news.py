@@ -525,6 +525,9 @@ def save_article_to_db(article_data, impact):
             safe_impact = safe_float(impact, "final_impact", 0.0, -100, 100)
             safe_sentiment = safe_float(estimated_sentiment, "final_sentiment", 0.0, -1.0, 1.0)
             
+            # Get actual source name from article_data (e.g., "Bloomberg Markets", "Reuters")
+            actual_source = article_data.get('source', 'RSS (Real-Time)')
+
             article, created = NewsArticle.objects.update_or_create(
                 article_hash=article_hash,
                 defaults={
@@ -532,7 +535,7 @@ def save_article_to_db(article_data, impact):
                     'analysis_run': None,
                     'headline': headline,
                     'summary': summary,
-                    'source': 'RSS (Real-Time)',  # RSS-specific source label
+                    'source': actual_source,  # Use actual RSS feed source name
                     'url': url,
                     'published_at': published_at,
                     'article_type': 'market',  # Default RSS articles to 'market' type
