@@ -1,0 +1,2432 @@
+{
+    "World News": {
+        "World News": [
+            {
+                "source_name": "BBC World News",
+                "source": "http://feeds.bbci.co.uk/news/world/rss.xml"
+            },
+            {
+                "source_name": "Reuters World News",
+                "source": "https://rsshub.app/reuters/world/us"
+            },
+            {
+                "source_name": "The Economist International",
+                "source": "https://www.economist.com/international/rss.xml"
+            },
+            {
+                "source_name": "PBS World",
+                "source": "https://www.pbs.org/newshour/feeds/rss/world"
+            },
+            {
+                "source_name": "Al Jazeera World",
+                "source": "https://www.aljazeera.com/xml/rss/all.xml"
+            },
+            {
+                "source_name": "AP World News",
+                "source": "https://rsshub.app/apnews/topics/world-news/"
+            },
+            {
+                "source_name": "The Conversation Global",
+                "source": "https://theconversation.com/global/home-page.atom"
+            },
+            {
+                "source_name": "Australian SBS News World",
+                "source": "https://www.sbs.com.au/news/topic/world/feed"
+            },
+            {
+                "source_name": "The Guardian World",
+                "source": "https://www.theguardian.com/world/rss"
+            },
+            {
+                "source_name": "CS Monitor World",
+                "source": "https://rss.csmonitor.com/feeds/world"
+            },
+            {
+                "source_name": "Foreign Affairs",
+                "source": "https://www.foreignaffairs.com/rss.xml"
+            },
+            {
+                "source_name": "Le Monde Diplomatique",
+                "source": "https://mondediplo.com/spip.php?page=backend"
+            },
+            {
+                "source_name": "ABC International Headlines",
+                "source": "https://abcnews.go.com/abcnews/internationalheadlines"
+            },
+            {
+                "source_name": "CBS World News",
+                "source": "https://www.cbsnews.com/latest/rss/world"
+            },
+            {
+                "source_name": "DW World News",
+                "source": "https://rss.dw.com/rdf/rss-en-all"
+            },
+            {
+                "source_name": "The Epoch Times World",
+                "source": "https://feed.theepochtimes.com/world/feed?_gl=1*1el8ydk*_ga*NTg1MTEzNDM4LjE3MjMxMTUxNDc.*_ga_RD0QM5H02Q*MTcyMzExNTE0Ni4xLjAuMTcyMzExNTE0OC41OC4wLjA."
+            },
+            {
+                "source_name": "BBC UK",
+                "source": "http://feeds.bbci.co.uk/news/uk/rss.xml"
+            },
+            {
+                "source_name": "BBC Africa",
+                "source": "http://feeds.bbci.co.uk/news/world/africa/rss.xml"
+            },
+            {
+                "source_name": "BBC Asia",
+                "source": "http://feeds.bbci.co.uk/news/world/asia/rss.xml"
+            },
+            {
+                "source_name": "BBC Europe",
+                "source": "http://feeds.bbci.co.uk/news/world/europe/rss.xml"
+            },
+            {
+                "source_name": "BBC Latin America",
+                "source": "http://feeds.bbci.co.uk/news/world/latin_america/rss.xml"
+            },
+            {
+                "source_name": "BBC Middle East",
+                "source": "http://feeds.bbci.co.uk/news/world/middle_east/rss.xml"
+            },
+            {
+                "source_name": "BBC US & Canada",
+                "source": "http://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"
+            },
+            {
+                "source_name": "BBC England",
+                "source": "http://feeds.bbci.co.uk/news/england/rss.xml"
+            },
+            {
+                "source_name": "BBC Northern Ireland",
+                "source": "http://feeds.bbci.co.uk/news/northern_ireland/rss.xml"
+            },
+            {
+                "source_name": "BBC Scotland",
+                "source": "http://feeds.bbci.co.uk/news/scotland/rss.xml"
+            },
+            {
+                "source_name": "BBC Wales",
+                "source": "http://feeds.bbci.co.uk/news/wales/rss.xml"
+            },
+            {
+                "source_name": "CNBC World News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362"
+            },
+            {
+                "source_name": "CNBC US News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15837362"
+            },
+            {
+                "source_name": "CNBC Asia News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19832390"
+            },
+            {
+                "source_name": "CNBC Europe News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19794221"
+            },
+            {
+                "source_name": "DW German News",
+                "source": "https://rss.dw.com/rdf/rss-en-ger"
+            },
+            {
+                "source_name": "DW World News",
+                "source": "https://rss.dw.com/rdf/rss-en-world"
+            },
+            {
+                "source_name": "DW EU News",
+                "source": "https://rss.dw.com/rdf/rss-en-eu"
+            },
+            {
+                "source_name": "DW Asia News",
+                "source": "https://rss.dw.com/rdf/rss-en-asia"
+            },
+            {
+                "source_name": "Google News World News",
+                "source": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Public Administration",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREp6ZEdkMEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News United Nations",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGQwTmpVU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News European Union",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNRjgyZEY5Nk9CSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Peacecorps Peace Corps",
+                "source": "http://www.peacecorps.gov/rss/careerlink/jobs.xml"
+            },
+            {
+                "source_name": "Peacecorps Peace Corps",
+                "source": "http://www.peacecorps.gov/rss/peacecorpsnews.xml"
+            }
+        ]
+    },
+    "Economy": {
+        "Markets": [
+            {
+                "source_name": "Bloomberg Markets",
+                "source": "https://feeds.bloomberg.com/markets/news.rss"
+            },
+            {
+                "source_name": "WSJ Markets",
+                "source": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+            },
+            {
+                "source_name": "CNBC Markets",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147"
+            },
+            {
+                "source_name": "Seeking Alpha",
+                "source": "https://seekingalpha.com/feed.xml"
+            },
+            {
+                "source_name": "FINVIZ",
+                "source": "https://rsshub.app/finviz"
+            },
+            {
+                "source_name": "Benzinga Market Summary",
+                "source": "https://www.benzinga.com/general/market-summary/feed"
+            },
+            {
+                "source_name": "Benzinga ETFs",
+                "source": "https://www.benzinga.com/etfs/feed"
+            },
+            {
+                "source_name": "Benzinga Markets",
+                "source": "https://www.benzinga.com/markets/feed"
+            },
+            {
+                "source_name": "Benzinga Earnings",
+                "source": "https://www.benzinga.com/news/earnings/feed"
+            },
+            {
+                "source_name": "Benzinga Dividends",
+                "source": "https://www.benzinga.com/news/dividends/feed"
+            },
+            {
+                "source_name": "Stock Edge Daily Updates",
+                "source": "https://rsshub.app/stockedge/daily-updates/news"
+            },
+            {
+                "source_name": "ECB Exchange Rates",
+                "source": "https://www.ecb.europa.eu/rss/rbu.html"
+            },
+            {
+                "source_name": "ECB FX USD",
+                "source": "https://www.ecb.europa.eu/rss/fxref-usd.html"
+            },
+            {
+                "source_name": "CNBC Investment News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001054"
+            },
+            {
+                "source_name": "Barron's",
+                "source": "https://www.barrons.com/feed/rss/hp"
+            },
+            {
+                "source_name": "Zero Hedge",
+                "source": "https://feeds.feedburner.com/zerohedge/feed"
+            },
+            {
+                "source_name": "CNBC Investing",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839069"
+            },
+            {
+                "source_name": "MarketWatch Top Stories",
+                "source": "https://feeds.content.dowjones.io/public/rss/mw_topstories"
+            },
+            {
+                "source_name": "Yahoo Finance",
+                "source": "https://finance.yahoo.com/news/rssindex"
+            },
+            {
+                "source_name": "Bloomberg Wealth",
+                "source": "https://feeds.bloomberg.com/wealth/news.rss"
+            },
+            {
+                "source_name": "CNBC Wealth",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001054"
+            },
+            {
+                "source_name": "CNBC Financial Advisors",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100646281"
+            }
+        ],
+        "Economy": [
+            {
+                "source_name": "Bloomberg Economics",
+                "source": "https://feeds.bloomberg.com/economics/news.rss"
+            },
+            {
+                "source_name": "CNBC Economy",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258"
+            },
+            {
+                "source_name": "The Economist Finance and Economics",
+                "source": "https://www.economist.com/finance-and-economics/rss.xml"
+            },
+            {
+                "source_name": "NYT Economy",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml"
+            },
+            {
+                "source_name": "IMF Publications",
+                "source": "https://www.imf.org/en/Publications/RSS?language=eng"
+            },
+            {
+                "source_name": "Benzinga Economics",
+                "source": "https://www.benzinga.com/economics/feed"
+            },
+            {
+                "source_name": "Benzinga Federal Reserve",
+                "source": "https://www.benzinga.com/federal-reserve/feed"
+            },
+            {
+                "source_name": "ECB Press",
+                "source": "https://www.ecb.europa.eu/rss/press.html"
+            },
+            {
+                "source_name": "ECB Blog",
+                "source": "https://www.ecb.europa.eu/rss/blog.html"
+            },
+            {
+                "source_name": "ECB Statistics",
+                "source": "https://www.ecb.europa.eu/rss/statpress.html"
+            },
+            {
+                "source_name": "ECB Publications",
+                "source": "https://www.ecb.europa.eu/rss/pub.html"
+            },
+            {
+                "source_name": "ECB Operations",
+                "source": "https://www.ecb.europa.eu/rss/operations.html"
+            },
+            {
+                "source_name": "AP Economics News",
+                "source": "https://rsshub.app/apnews/topics/economy/"
+            },
+            {
+                "source_name": "AP Economy News",
+                "source": "https://rsshub.app/apnews/topics/economy/"
+            },
+            {
+                "source_name": "NYT Upshot",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml"
+            },
+            {
+                "source_name": "Google News Economy",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNR2RtY0hNekVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Macroeconomics",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFJ5WmpZU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Trade",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGRpY2pBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News World Trade",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE55ZGw4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Supply Chain",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFo2TlRrU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Business": [
+            {
+                "source_name": "Financial Times",
+                "source": "https://www.ft.com/?format=rss"
+            },
+            {
+                "source_name": "Bloomberg Industries",
+                "source": "https://feeds.bloomberg.com/industries/news.rss"
+            },
+            {
+                "source_name": "WSJ US Business",
+                "source": "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml"
+            },
+            {
+                "source_name": "CNBC Top News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839135"
+            },
+            {
+                "source_name": "CNBC Small Business",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=44877279"
+            },
+            {
+                "source_name": "NYT Business",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
+            },
+            {
+                "source_name": "NYT Small Business",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/SmallBusiness.xml"
+            },
+            {
+                "source_name": "Benzinga News",
+                "source": "https://www.benzinga.com/news/feed"
+            },
+            {
+                "source_name": "Fox Business",
+                "source": "https://feeds.foxnews.com/foxnews/business"
+            },
+            {
+                "source_name": "AP Business News",
+                "source": "https://rsshub.app/apnews/topics/business/"
+            },
+            {
+                "source_name": "The Conversation Business",
+                "source": "https://theconversation.com/us/business/articles.atom"
+            },
+            {
+                "source_name": "Reuters",
+                "source": "https://www.reutersagency.com/feed/"
+            },
+            {
+                "source_name": "Nikkei Asia",
+                "source": "https://asia.nikkei.com/rss"
+            },
+            {
+                "source_name": "CFO",
+                "source": "https://www.cfo.com/feed/"
+            },
+            {
+                "source_name": "Supply Chain Dive",
+                "source": "https://www.supplychaindive.com/feeds/news/"
+            },
+            {
+                "source_name": "FreightWaves",
+                "source": "https://www.freightwaves.com/news/feed"
+            },
+            {
+                "source_name": "Industry Week",
+                "source": "https://www.industryweek.com/rss.xml"
+            },
+            {
+                "source_name": "BBC Business",
+                "source": "http://feeds.bbci.co.uk/news/business/rss.xml"
+            },
+            {
+                "source_name": "CNBC Business News",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147"
+            },
+            {
+                "source_name": "CNBC Earnings",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839135"
+            },
+            {
+                "source_name": "CNBC Finance",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"
+            },
+            {
+                "source_name": "CNBC Real Estate",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000115"
+            },
+            {
+                "source_name": "CNBC Media",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000110"
+            },
+            {
+                "source_name": "CNBC Retail",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000116"
+            },
+            {
+                "source_name": "DW Business",
+                "source": "https://rss.dw.com/rdf/rss-en-bus"
+            },
+            {
+                "source_name": "NYT Your Money",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/YourMoney.xml"
+            },
+            {
+                "source_name": "NYT Upshot",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/Upshot.xml"
+            },
+            {
+                "source_name": "CNBC Personal Finance",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=21324812"
+            },
+            {
+                "source_name": "Google News Business",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4YW01eE1XMFNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Finance": [
+            {
+                "source_name": "Google News Finance",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREpmTjNRU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Bigpicture",
+                "source": "http://bigpicture.typepad.com/comments/atom.xml"
+            },
+            {
+                "source_name": "MrMoneyMustache",
+                "source": "http://feeds.feedburner.com/MrMoneyMustache"
+            },
+            {
+                "source_name": "Calculatedriskblog",
+                "source": "http://www.calculatedriskblog.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Economist Finance",
+                "source": "http://www.economist.com/rss/finance_and_economics_rss.xml"
+            },
+            {
+                "source_name": "Fool Finance",
+                "source": "http://www.fool.com/About/headlines/rss_headlines.asp"
+            },
+            {
+                "source_name": "Iwillteachyoutoberich",
+                "source": "http://www.iwillteachyoutoberich.com/feed/"
+            },
+            {
+                "source_name": "Marketwatch",
+                "source": "http://www.marketwatch.com/rss/topstories"
+            },
+            {
+                "source_name": "Google News Investment Banking",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUxY0RGdEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Financial Services",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREpvTkRBd2RCSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Fintech",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyMHZNREV5WXpGalpuSVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Blog Microfinance",
+                "source": "http://blog.bracusa.org/feeds/posts/default"
+            },
+            {
+                "source_name": "indiamicrofinance",
+                "source": "http://feeds.feedburner.com/indiamicrofinance"
+            },
+            {
+                "source_name": "RSFSocialFinance",
+                "source": "http://feeds.feedburner.com/RSFSocialFinance"
+            },
+            {
+                "source_name": "Asiaiix",
+                "source": "http://www.asiaiix.com/feed"
+            },
+            {
+                "source_name": "Opportunity",
+                "source": "http://www.opportunity.org/feed/"
+            },
+            {
+                "source_name": "Google News Accounting",
+                "source": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNRjlxYlJJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Audit",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZuY2pCNEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Investing": [
+            {
+                "source_name": "Google News Investing",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR2RmWm13U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Abnormalreturns",
+                "source": "http://abnormalreturns.com/feed/"
+            },
+            {
+                "source_name": "Aswathdamodaran",
+                "source": "http://aswathdamodaran.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "A Wealth Of Common Sense",
+                "source": "http://awealthofcommonsense.com/feed/"
+            },
+            {
+                "source_name": "Seeking Alpha",
+                "source": "http://seekingalpha.com/feed.xml"
+            },
+            {
+                "source_name": "Fatpitchfinancials",
+                "source": "http://www.fatpitchfinancials.com/feed/"
+            },
+            {
+                "source_name": "Safalniveshak",
+                "source": "http://www.safalniveshak.com/feed/"
+            },
+            {
+                "source_name": "Google News Asset management",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNR2RvTnpkaU5oSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Stock market",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1J5Y1hBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "peterlbrandt",
+                "source": "http://feeds.feedburner.com/peterlbrandt"
+            },
+            {
+                "source_name": "TheWholeStreet",
+                "source": "http://feeds.feedburner.com/TheWholeStreet"
+            },
+            {
+                "source_name": "the_slope_of_hope_with_ti",
+                "source": "http://feeds.feedburner.com/typepad/tradeblogs/the_slope_of_hope_with_ti"
+            },
+            {
+                "source_name": "Newtraderu",
+                "source": "http://newtraderu.com/"
+            },
+            {
+                "source_name": "Stockbee",
+                "source": "http://stockbee.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Traderfeed",
+                "source": "http://traderfeed.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Smbtraining",
+                "source": "http://www.smbtraining.com/blog/feed"
+            }
+        ],
+        "Exchange": [
+            {
+                "source_name": "Eightwone",
+                "source": "http://eightwone.com/feed/"
+            },
+            {
+                "source_name": "Exchangeserverpro",
+                "source": "http://exchangeserverpro.com/feed/"
+            },
+            {
+                "source_name": "Jaapwesselius-com",
+                "source": "http://feeds.feedburner.com/Jaapwesselius-com"
+            },
+            {
+                "source_name": "Mikecrowley",
+                "source": "http://mikecrowley.wordpress.com/feed/"
+            },
+            {
+                "source_name": "Expta",
+                "source": "http://www.expta.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Ingogegenwarth",
+                "source": "https://ingogegenwarth.wordpress.com/feed/"
+            },
+            {
+                "source_name": "Techcommunity",
+                "source": "https://techcommunity.microsoft.com/gxcuf89792/plugins/custom/microsoft/o365/custom-blog-rss"
+            },
+            {
+                "source_name": "Blog Exchanges",
+                "source": "http://blog.cex.io/feed/"
+            },
+            {
+                "source_name": "Bitfinex",
+                "source": "https://bitfinex.statuspage.io/history.rss"
+            },
+            {
+                "source_name": "Blog Exchanges",
+                "source": "https://blog.coinlist.co/rss/"
+            },
+            {
+                "source_name": "Status Exchanges",
+                "source": "https://status.bitgo.com/history.rss"
+            },
+            {
+                "source_name": "Status Exchanges",
+                "source": "https://status.coinlist.co/history.rss"
+            },
+            {
+                "source_name": "Status Exchanges",
+                "source": "https://status.gemini.com/history.rss"
+            },
+            {
+                "source_name": "Fireblocks",
+                "source": "https://www.fireblocks.com/blog/feed/"
+            },
+            {
+                "source_name": "ForexCrunch",
+                "source": "http://feeds.feedburner.com/ForexCrunch"
+            },
+            {
+                "source_name": "OANDAForexBlog",
+                "source": "http://feeds.feedburner.com/OANDAForexBlog"
+            },
+            {
+                "source_name": "Forexmagnates",
+                "source": "http://forexmagnates.com/feed/"
+            },
+            {
+                "source_name": "Forexlive",
+                "source": "http://www.forexlive.com/feed/"
+            },
+            {
+                "source_name": "Ft Forex",
+                "source": "http://www.ft.com/rss/markets/currencies"
+            },
+            {
+                "source_name": "Fxstreet",
+                "source": "http://www.fxstreet.com/xml/rss20.xml"
+            },
+            {
+                "source_name": "Investing.com",
+                "source": "http://www.investing.com/rss/news_1.rss"
+            }
+        ],
+        "Property": [
+            {
+                "source_name": "London News From Property Week",
+                "source": "http://feeds.feedburner.com/LondonNewsFromPropertyWeek"
+            },
+            {
+                "source_name": "Ft Property",
+                "source": "http://www.ft.com/rss/companies/property"
+            },
+            {
+                "source_name": "Guardian Property",
+                "source": "http://www.guardian.co.uk/money/property/rss"
+            },
+            {
+                "source_name": "Propertyindustryeye",
+                "source": "http://www.propertyindustryeye.com/feed/"
+            },
+            {
+                "source_name": "Propertywire",
+                "source": "http://www.propertywire.com/rss-feed/news/"
+            },
+            {
+                "source_name": "Rightmove",
+                "source": "http://www.rightmove.co.uk/news/feed"
+            },
+            {
+                "source_name": "Estateagenttoday",
+                "source": "https://www.estateagenttoday.co.uk/rss/news/1"
+            }
+        ],
+        "Venture Capital": [
+            {
+                "source_name": "BothSidesOfTheTable",
+                "source": "http://feeds.feedburner.com/BothSidesOfTheTable"
+            },
+            {
+                "source_name": "DavidGCohen",
+                "source": "http://feeds.feedburner.com/DavidGCohen"
+            },
+            {
+                "source_name": "FeldThoughts",
+                "source": "http://feeds.feedburner.com/FeldThoughts"
+            },
+            {
+                "source_name": "thisisgoingtobebig",
+                "source": "http://feeds.feedburner.com/thisisgoingtobebig"
+            },
+            {
+                "source_name": "Firstround",
+                "source": "http://firstround.com/review/feed.xml"
+            },
+            {
+                "source_name": "Tomtunguz",
+                "source": "http://tomtunguz.com/index.xml"
+            },
+            {
+                "source_name": "Hunterwalk",
+                "source": "http://www.hunterwalk.com/feeds/posts/default"
+            }
+        ]
+    },
+    "Technology": {
+        "Technology": [
+            {
+                "source_name": "Ars Technica",
+                "source": "http://feeds.arstechnica.com/arstechnica/index"
+            },
+            {
+                "source_name": "CNET News",
+                "source": "https://www.cnet.com/rss/news/"
+            },
+            {
+                "source_name": "Wired",
+                "source": "https://www.wired.com/feed/rss"
+            },
+            {
+                "source_name": "TechCrunch",
+                "source": "http://feeds.feedburner.com/TechCrunch/"
+            },
+            {
+                "source_name": "The Verge",
+                "source": "https://www.theverge.com/rss/index.xml"
+            },
+            {
+                "source_name": "Mashable",
+                "source": "http://feeds.mashable.com/Mashable"
+            },
+            {
+                "source_name": "Engadget",
+                "source": "https://www.engadget.com/rss.xml"
+            },
+            {
+                "source_name": "ZDNet",
+                "source": "https://www.zdnet.com/news/rss.xml"
+            },
+            {
+                "source_name": "The Next Web",
+                "source": "https://thenextweb.com/feed/"
+            },
+            {
+                "source_name": "Digital Trends",
+                "source": "https://www.digitaltrends.com/feed/"
+            },
+            {
+                "source_name": "PC Magazine",
+                "source": "https://rss.pcmag.com/feed/"
+            },
+            {
+                "source_name": "AnandTech",
+                "source": "https://www.anandtech.com/rss/"
+            },
+            {
+                "source_name": "Gizmodo",
+                "source": "https://gizmodo.com/rss"
+            },
+            {
+                "source_name": "VentureBeat",
+                "source": "http://feeds.feedburner.com/venturebeat"
+            },
+            {
+                "source_name": "TechRadar",
+                "source": "https://www.techradar.com/rss"
+            },
+            {
+                "source_name": "Macworld",
+                "source": "https://www.macworld.com/index.rss"
+            },
+            {
+                "source_name": "9to5Mac",
+                "source": "http://feeds.feedburner.com/9To5Mac-MacAllDay"
+            },
+            {
+                "source_name": "Lifehacker",
+                "source": "https://lifehacker.com/rss"
+            },
+            {
+                "source_name": "Gadget Review",
+                "source": "https://www.gadgetreview.com/feed"
+            },
+            {
+                "source_name": "MakeUseOf",
+                "source": "https://www.makeuseof.com/feed/"
+            },
+            {
+                "source_name": "Tom's Guide",
+                "source": "https://www.tomsguide.com/feeds/all"
+            },
+            {
+                "source_name": "Slashdot",
+                "source": "http://rss.slashdot.org/Slashdot/slashdot"
+            },
+            {
+                "source_name": "Pocketnow",
+                "source": "https://feeds.feedburner.com/pocketnow"
+            },
+            {
+                "source_name": "The Register",
+                "source": "https://www.theregister.com/headlines.atom"
+            },
+            {
+                "source_name": "ITPro",
+                "source": "https://www.itpro.co.uk/feeds/all"
+            },
+            {
+                "source_name": "TechCrunch",
+                "source": "https://techcrunch.com/feed/"
+            },
+            {
+                "source_name": "Phoronix",
+                "source": "https://www.phoronix.com/rss.php"
+            },
+            {
+                "source_name": "AP Technology News",
+                "source": "https://rsshub.app/apnews/topics/technology/"
+            },
+            {
+                "source_name": "AP Social Media News",
+                "source": "https://rsshub.app/apnews/topics/social-media/"
+            },
+            {
+                "source_name": "Tech Xplore",
+                "source": "https://techxplore.com/rss-feed/"
+            },
+            {
+                "source_name": "AP AI News",
+                "source": "https://rsshub.app/apnews/topics/artificial-intelligence/"
+            },
+            {
+                "source_name": "MIT AI News",
+                "source": "http://news.mit.edu/rss/topic/artificial-intelligence2"
+            },
+            {
+                "source_name": "NVIDIA Blog",
+                "source": "http://feeds.feedburner.com/nvidiablog"
+            },
+            {
+                "source_name": "Science Daily AI News",
+                "source": "https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml"
+            },
+            {
+                "source_name": "MIT Technology Review",
+                "source": "https://www.technologyreview.com/feed/"
+            },
+            {
+                "source_name": "TechRepublic",
+                "source": "https://www.techrepublic.com/rssfeeds/articles/"
+            },
+            {
+                "source_name": "Silicon Angle",
+                "source": "https://siliconangle.com/feed/"
+            },
+            {
+                "source_name": "InfoQ",
+                "source": "https://feed.infoq.com/"
+            },
+            {
+                "source_name": "Dark Reading",
+                "source": "https://www.darkreading.com/rss.xml"
+            },
+            {
+                "source_name": "AI News",
+                "source": "https://artificialintelligence-news.com/feed/"
+            },
+            {
+                "source_name": "Container Journal",
+                "source": "https://containerjournal.com/feed/"
+            },
+            {
+                "source_name": "SDxCentral",
+                "source": "https://www.sdxcentral.com/feed/"
+            },
+            {
+                "source_name": "SecurityWeek",
+                "source": "https://www.securityweek.com/feed/"
+            },
+            {
+                "source_name": "ReadWrite",
+                "source": "https://readwrite.com/feed/"
+            },
+            {
+                "source_name": "CIO",
+                "source": "https://www.cio.com/feed/"
+            },
+            {
+                "source_name": "AP Technology News",
+                "source": "https://rsshub.app/apnews/topics/tech/"
+            },
+            {
+                "source_name": "BBC Technology",
+                "source": "http://feeds.bbci.co.uk/news/technology/rss.xml"
+            },
+            {
+                "source_name": "CNBC Technology",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910"
+            },
+            {
+                "source_name": "Google News Big Data",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNR0p6TW1vNGNSSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News IT",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE41ZEdNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Electronics": [
+            {
+                "source_name": "Google News Electronics",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREp0Y25BU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "EmbeddedProjectsFromAroundTheWeb",
+                "source": "http://feeds.feedburner.com/EmbeddedProjectsFromAroundTheWeb"
+            },
+            {
+                "source_name": "OpenElectronics",
+                "source": "http://feeds.feedburner.com/OpenElectronics"
+            },
+            {
+                "source_name": "Adafruit",
+                "source": "http://www.adafruit.com/blog/feed/"
+            },
+            {
+                "source_name": "Arduino",
+                "source": "http://www.arduino.cc/blog/"
+            },
+            {
+                "source_name": "Eevblog",
+                "source": "http://www.eevblog.com/feed/"
+            },
+            {
+                "source_name": "Seeedstudio",
+                "source": "http://www.seeedstudio.com/blog/feed/"
+            },
+            {
+                "source_name": "Sparkfun",
+                "source": "http://www.sparkfun.com/commerce/rss.php"
+            },
+            {
+                "source_name": "Google News Semiconductor",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNRGh0YUROclpCSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Software": [
+            {
+                "source_name": "Google News Software",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREZ0WmpBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Software Development",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREkxYzJKb1poSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Cloud Computing",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREo1WHpsdE14SUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Cybersecurity",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREl5ZUY4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Data Science": [
+            {
+                "source_name": "Datascience101 Data Science",
+                "source": "http://datascience101.wordpress.com/feed/"
+            },
+            {
+                "source_name": "AnalyticsVidhya",
+                "source": "http://feeds.feedburner.com/AnalyticsVidhya"
+            },
+            {
+                "source_name": "Kdnuggets Data Mining Analytics",
+                "source": "http://feeds.feedburner.com/kdnuggets-data-mining-analytics"
+            },
+            {
+                "source_name": "RBloggers",
+                "source": "http://feeds.feedburner.com/RBloggers"
+            },
+            {
+                "source_name": "Datasciencecentral Data Science",
+                "source": "http://www.datasciencecentral.com/profiles/blog/feed"
+            },
+            {
+                "source_name": "Stat Data Science",
+                "source": "http://www.stat.columbia.edu/~cook/movabletype/mlm/atom.xml"
+            },
+            {
+                "source_name": "Medium Data Science",
+                "source": "https://medium.com/feed/towards-data-science"
+            }
+        ],
+        "Artificial Intelligence": [
+            {
+                "source_name": "Google News Artificial Intelligence",
+                "source": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNRzFyZWhJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Google News Machine Learning",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZvZVdoZkVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Blog Machine Learning",
+                "source": "http://blog.bigml.com/feed/"
+            },
+            {
+                "source_name": "Fastml",
+                "source": "http://fastml.com/atom.xml"
+            },
+            {
+                "source_name": "Machine Learning Mastery",
+                "source": "http://feeds.feedburner.com/MachineLearningMastery"
+            },
+            {
+                "source_name": "Research",
+                "source": "http://research.microsoft.com/rss/news.xml"
+            },
+            {
+                "source_name": "Api Machine Learning",
+                "source": "https://api.reddit.com/subreddit/MachineLearning"
+            },
+            {
+                "source_name": "Blog Machine Learning",
+                "source": "https://blog.openai.com/rss/"
+            },
+            {
+                "source_name": "Deepmind",
+                "source": "https://deepmind.com/blog/feed/basic/"
+            }
+        ],
+        "Drones": [
+            {
+                "source_name": "Drone Blog",
+                "source": "http://droneblog.com/feed/"
+            },
+            {
+                "source_name": "Drone Life",
+                "source": "http://dronelife.com/feed/"
+            },
+            {
+                "source_name": "Dronestagr",
+                "source": "http://www.dronestagr.am/feed/"
+            },
+            {
+                "source_name": "Spacewar Drones",
+                "source": "http://www.spacewar.com/uav.xml"
+            },
+            {
+                "source_name": "Suasnews",
+                "source": "http://www.suasnews.com/feed/"
+            },
+            {
+                "source_name": "Uasvision",
+                "source": "http://www.uasvision.com/feed/"
+            }
+        ],
+        "Gcp": [
+            {
+                "source_name": "Google Bigquery-Revision History",
+                "source": "http://feeds.feedburner.com/GoogleBigquery-RevisionHistory"
+            },
+            {
+                "source_name": "Cloud",
+                "source": "https://cloud.google.com/feeds/gcp-release-notes.xml"
+            },
+            {
+                "source_name": "Medium Gcp",
+                "source": "https://medium.com/feed/google-cloud"
+            },
+            {
+                "source_name": "Snownews",
+                "source": "https://snownews.appspot.com/feed"
+            },
+            {
+                "source_name": "Status Gcp",
+                "source": "https://status.cloud.google.com/feed.atom"
+            },
+            {
+                "source_name": "Gcpweekly",
+                "source": "https://www.gcpweekly.com/feed/rss"
+            }
+        ],
+        "Programming": [
+            {
+                "source_name": "Blog Programming",
+                "source": "http://blog.stackoverflow.com/feed/"
+            },
+            {
+                "source_name": "ScottHanselman",
+                "source": "http://feeds.feedburner.com/ScottHanselman"
+            },
+            {
+                "source_name": "Martinfowler",
+                "source": "http://martinfowler.com/bliki/bliki.atom"
+            },
+            {
+                "source_name": "News Programming",
+                "source": "http://news.ycombinator.com/rss"
+            },
+            {
+                "source_name": "Thepracticaldev",
+                "source": "http://thepracticaldev.com/feed"
+            },
+            {
+                "source_name": "Codeproject",
+                "source": "http://www.codeproject.com/webservices/articlerss.aspx"
+            },
+            {
+                "source_name": "Medium Programming",
+                "source": "https://medium.freecodecamp.com/feed"
+            },
+            {
+                "source_name": "Distrowatch",
+                "source": "http://distrowatch.com/news/dw.xml"
+            },
+            {
+                "source_name": "d0od",
+                "source": "http://feeds.feedburner.com/d0od"
+            },
+            {
+                "source_name": "Phoronix",
+                "source": "http://feeds.feedburner.com/Phoronix"
+            },
+            {
+                "source_name": "Linux Today",
+                "source": "http://linuxtoday.com/backend/biglt.rss"
+            },
+            {
+                "source_name": "How to Forge",
+                "source": "http://www.howtoforge.com/node/feed"
+            },
+            {
+                "source_name": "Linux Insider",
+                "source": "http://www.linuxinsider.com/perl/syndication/rssfull.pl"
+            },
+            {
+                "source_name": "Linux Journal",
+                "source": "http://www.linuxjournal.com/node/feed"
+            }
+        ],
+        "Sql": [
+            {
+                "source_name": "SQL Authority",
+                "source": "http://blog.sqlauthority.com/feed/"
+            },
+            {
+                "source_name": "Data Platform Insider",
+                "source": "http://blogs.technet.com/dataplatforminsider/rss.xml"
+            },
+            {
+                "source_name": "BrentOzar - SQL Server Dba",
+                "source": "http://feeds.feedburner.com/BrentOzar-SqlServerDba"
+            },
+            {
+                "source_name": "MS SQL Tips",
+                "source": "http://feeds.feedburner.com/MSSQLTips-LatestSqlServerTips"
+            },
+            {
+                "source_name": "SQLRockstar",
+                "source": "http://feeds.feedburner.com/SQLRockstar"
+            },
+            {
+                "source_name": "Feeds2 Sql",
+                "source": "http://feeds2.feedburner.com/PaulSRandal"
+            },
+            {
+                "source_name": "Sqlservercentral",
+                "source": "http://www.sqlservercentral.com/sscrss.xml"
+            }
+        ],
+        "Vr": [
+            {
+                "source_name": "Roadtovr",
+                "source": "http://www.roadtovr.com/feed"
+            },
+            {
+                "source_name": "Sciencedaily Vr",
+                "source": "http://www.sciencedaily.com/rss/computers_math/virtual_reality.xml"
+            },
+            {
+                "source_name": "Uploadvr",
+                "source": "http://www.uploadvr.com/feed/"
+            },
+            {
+                "source_name": "Virtualrealitytimes",
+                "source": "http://www.virtualrealitytimes.com/feed/"
+            },
+            {
+                "source_name": "Api Vr",
+                "source": "https://api.reddit.com/subreddit/oculus"
+            },
+            {
+                "source_name": "Api Vr",
+                "source": "https://api.reddit.com/subreddit/virtualreality"
+            },
+            {
+                "source_name": "Oculus",
+                "source": "https://www.oculus.com/blog/rss/"
+            }
+        ]
+    },
+    "Politics": {
+        "Politics": [
+            {
+                "source_name": "PBS Politics",
+                "source": "https://www.pbs.org/newshour/feeds/rss/politics"
+            },
+            {
+                "source_name": "AP News Politics",
+                "source": "https://rsshub.app/apnews/topics/politics/"
+            },
+            {
+                "source_name": "The Conversation US Politics",
+                "source": "https://theconversation.com/us/politics/articles.atom"
+            },
+            {
+                "source_name": "The Conversation UK Politics",
+                "source": "https://theconversation.com/uk/politics/articles.atom"
+            },
+            {
+                "source_name": "SBS World News",
+                "source": "https://www.sbs.com.au/news/topic/world/feed"
+            },
+            {
+                "source_name": "Christian Science Monitor Politics",
+                "source": "https://rss.csmonitor.com/feeds/politics"
+            },
+            {
+                "source_name": "Le Monde Diplomatique",
+                "source": "https://mondediplo.com/spip.php?page=backend"
+            },
+            {
+                "source_name": "Deutsche Welle (DW) Politics",
+                "source": "https://rss.dw.com/rdf/rss-en-all"
+            },
+            {
+                "source_name": "CNBC Politics",
+                "source": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000113"
+            },
+            {
+                "source_name": "New York Times Politics",
+                "source": "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml"
+            },
+            {
+                "source_name": "Fox News Politics",
+                "source": "https://moxie.foxnews.com/google-publisher/politics.xml"
+            },
+            {
+                "source_name": "Politico",
+                "source": "https://rss.politico.com/politics-news.xml"
+            },
+            {
+                "source_name": "The Diplomat",
+                "source": "https://thediplomat.com/feed"
+            },
+            {
+                "source_name": "Africanews Politics",
+                "source": "https://www.africanews.com/feed/rss"
+            },
+            {
+                "source_name": "AP Politics News",
+                "source": "https://rsshub.app/apnews/topics/politics/"
+            },
+            {
+                "source_name": "BBC Politics",
+                "source": "http://feeds.bbci.co.uk/news/politics/rss.xml"
+            },
+            {
+                "source_name": "Google News Politics",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFZ4ZERBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Dailykos",
+                "source": "http://feeds.dailykos.com/dailykos/index.xml"
+            },
+            {
+                "source_name": "AtlanticPoliticsChannel",
+                "source": "http://feeds.feedburner.com/AtlanticPoliticsChannel"
+            },
+            {
+                "source_name": "Politico",
+                "source": "http://feeds.politico.com/politico/rss/politicopicks"
+            },
+            {
+                "source_name": "Thehill",
+                "source": "http://thehill.com/component/rss-syndicator/"
+            },
+            {
+                "source_name": "Guardian Politics",
+                "source": "http://www.guardian.co.uk/world/usa/rss"
+            },
+            {
+                "source_name": "Nytimes Politics",
+                "source": "http://www.nytimes.com/services/xml/rss/nyt/Politics.xml"
+            },
+            {
+                "source_name": "Washington Post Politics",
+                "source": "http://www.Washington Post.com/wp-dyn/rss/politics/index.xml"
+            }
+        ],
+        "Policy": [
+            {
+                "source_name": "Politico",
+                "source": "https://www.politico.com/rss/politicopicks.xml"
+            },
+            {
+                "source_name": "The Hill",
+                "source": "https://thehill.com/rss/syndicator/19109"
+            },
+            {
+                "source_name": "Regulation Asia",
+                "source": "https://www.regulationasia.com/feed/"
+            },
+            {
+                "source_name": "FinReg Alert",
+                "source": "https://finregalert.com/feed/"
+            },
+            {
+                "source_name": "Inside Privacy",
+                "source": "https://www.insideprivacy.com/feed/"
+            },
+            {
+                "source_name": "CyberScoop",
+                "source": "https://www.cyberscoop.com/feed/"
+            },
+            {
+                "source_name": "EurActiv",
+                "source": "https://www.euractiv.com/feed/"
+            },
+            {
+                "source_name": "GovInfoSecurity",
+                "source": "https://www.govinfosecurity.com/rss.xml"
+            },
+            {
+                "source_name": "JD Supra",
+                "source": "https://www.jdsupra.com/rss/"
+            },
+            {
+                "source_name": "National Law Review",
+                "source": "https://www.natlawreview.com/feed"
+            },
+            {
+                "source_name": "ESG Today",
+                "source": "https://www.esgtoday.com/feed/"
+            },
+            {
+                "source_name": "Google News Policy",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREl3ZUhkdEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "European Parliament": [
+            {
+                "source_name": "Eur-lex",
+                "source": "http://eur-lex.europa.eu/EN/display-feed.rss"
+            },
+            {
+                "source_name": "Libraryeuroparl",
+                "source": "http://libraryeuroparl.wordpress.com/feed/"
+            },
+            {
+                "source_name": "Consilium",
+                "source": "http://www.consilium.europa.eu/en/rss/pressreleases.ashx"
+            },
+            {
+                "source_name": "Europarl",
+                "source": "http://www.europarl.europa.eu/rss/committee/itre/en.xml"
+            },
+            {
+                "source_name": "Api European Parliament",
+                "source": "https://api.reddit.com/subreddit/europeanparliament"
+            },
+            {
+                "source_name": "Flickr",
+                "source": "https://www.flickr.com/services/feeds/photos_public.gne"
+            }
+        ]
+    },
+    "Industry": {
+        "Social Media": [
+            {
+                "source_name": "Google News Social Media",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNR1pqYURCd0VnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Agriculture": [
+            {
+                "source_name": "Google News Agriculture",
+                "source": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNR2hyWmhJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Forestry": [
+            {
+                "source_name": "Google News Forestry",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1l6T0dnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Fishing": [
+            {
+                "source_name": "Google News Fishing",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGswYW1NU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Mining": [
+            {
+                "source_name": "Google News Mining",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFV6Y21RU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Gas": [
+            {
+                "source_name": "Google News Gas",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE0zZUhrU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Petroleum": [
+            {
+                "source_name": "Google News Petroleum",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFZ5WDJvU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Vehicles": [
+            {
+                "source_name": "Google News Vehicles",
+                "source": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNR3MwYWhJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Aerospace Engineering": [
+            {
+                "source_name": "Google News Aerospace Engineering",
+                "source": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNSGMzY3hJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Aerospace": [
+            {
+                "source_name": "Google News Aerospace",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUwTjJkeUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Aviation": [
+            {
+                "source_name": "Google News Aviation",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1o2ZVdjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Metal": [
+            {
+                "source_name": "Google News Metal",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFIwTjJ3U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Textile": [
+            {
+                "source_name": "Google News Textile",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1J1Y2pjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Clothing": [
+            {
+                "source_name": "Google News Clothing",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGxxTW1RU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Fashion": [
+            {
+                "source_name": "Google News Fashion",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE15ZEd3U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Damselindior",
+                "source": "http://damselindior.com/feed/"
+            },
+            {
+                "source_name": "fashionistacom",
+                "source": "http://feeds.feedburner.com/fashionistacom"
+            },
+            {
+                "source_name": "rss",
+                "source": "http://feeds.feedburner.com/highsnobiety/rss"
+            },
+            {
+                "source_name": "Hypebeast",
+                "source": "http://hypebeast.com/feed/"
+            },
+            {
+                "source_name": "Businessoffashion",
+                "source": "http://www.businessoffashion.com/feed"
+            },
+            {
+                "source_name": "Refinery29",
+                "source": "http://www.refinery29.com/index.xml"
+            },
+            {
+                "source_name": "Theblondesalad",
+                "source": "http://www.theblondesalad.com/feeds/posts/default"
+            }
+        ],
+        "Fashion Design": [
+            {
+                "source_name": "Google News Fashion Design",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREp4Y1dRMGJoSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Chemical Engineering": [
+            {
+                "source_name": "Google News Chemical Engineering",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREYwWW5BU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Pharmacy": [
+            {
+                "source_name": "Google News Pharmacy",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZ5Wm5CekVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Pharmacology": [
+            {
+                "source_name": "Google News Pharmacology",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFl5Y0Y4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Plastic": [
+            {
+                "source_name": "Google News Plastic",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFY2T0RjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Costruction": [
+            {
+                "source_name": "Google News Costruction",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4Yld0dWNuZ1NBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Electricity": [
+            {
+                "source_name": "Google News Electricity",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREpzZEhNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Nuclear power": [
+            {
+                "source_name": "Google News Nuclear power",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFZyT1RjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Renewable Energy": [
+            {
+                "source_name": "Google News Renewable Energy",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFptYUhNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Hydropower": [
+            {
+                "source_name": "Google News Hydropower",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE51Wm13U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Real Estate": [
+            {
+                "source_name": "Google News Real Estate",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFpyTVhJU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Geekestate",
+                "source": "http://feeds.feedburner.com/Geekestate"
+            },
+            {
+                "source_name": "inmannews",
+                "source": "http://feeds.feedburner.com/inmannews"
+            },
+            {
+                "source_name": "Feeds2 Real Estate",
+                "source": "http://feeds2.feedburner.com/redfin_corporate"
+            },
+            {
+                "source_name": "Biggerpockets",
+                "source": "http://www.biggerpockets.com/renewsblog/feed/"
+            },
+            {
+                "source_name": "Nytimes Real Estate",
+                "source": "http://www.nytimes.com/services/xml/rss/nyt/RealEstate.xml"
+            },
+            {
+                "source_name": "Realtor",
+                "source": "http://www.realtor.com/news/feed/"
+            },
+            {
+                "source_name": "Appfolio",
+                "source": "https://www.appfolio.com/blog/feed/"
+            }
+        ],
+        "Commerce": [
+            {
+                "source_name": "Google News Commerce",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4Tkd4NWJIRVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Infrastructure": [
+            {
+                "source_name": "Google News Infrastructure",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUzYTNaMkVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Civil Engineering": [
+            {
+                "source_name": "Google News Civil Engineering",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl5Tkc1dFh6Z1NBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Architecture": [
+            {
+                "source_name": "Google News Architecture",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNRE51Wm0xeEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Urban planning": [
+            {
+                "source_name": "Google News Urban planning",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyMHZNREV6TkhJMU5IRVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Property Management": [
+            {
+                "source_name": "Google News Property Management",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNRFJyY1RZeUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Facility Management": [
+            {
+                "source_name": "Google News Facility Management",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREprZDNKdEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "E-commerce": [
+            {
+                "source_name": "Google News E-commerce",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREp0T1RZU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Retail": [
+            {
+                "source_name": "Google News Retail",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREU1TVY4M0VnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Cosmetology": [
+            {
+                "source_name": "Google News Cosmetology",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREk0Y21KcUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Cosmetics": [
+            {
+                "source_name": "Google News Cosmetics",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUwZEhKc0VnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Hospitality": [
+            {
+                "source_name": "Google News Hospitality",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNRFp0WW01NUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Insurance": [
+            {
+                "source_name": "Google News Insurance",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE40YTNNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "Claimsjournal",
+                "source": "http://www.claimsjournal.com/rss/news/"
+            },
+            {
+                "source_name": "Ft Insurance",
+                "source": "http://www.ft.com/rss/companies/insurance"
+            },
+            {
+                "source_name": "Ibamag",
+                "source": "http://www.ibamag.com/rss/"
+            },
+            {
+                "source_name": "Insurancejournal",
+                "source": "http://www.insurancejournal.com/newsfeed/news.rss"
+            },
+            {
+                "source_name": "Riskandinsurance",
+                "source": "http://www.riskandinsurance.com/feed/"
+            },
+            {
+                "source_name": "Www3 Insurance",
+                "source": "http://www3.ambest.com/ambv/bestwirefeed/"
+            },
+            {
+                "source_name": "Reinsurancene",
+                "source": "https://www.reinsurancene.ws/feed/"
+            }
+        ],
+        "Publishing": [
+            {
+                "source_name": "Google News Publishing",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR2g2TWpnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Advertising": [
+            {
+                "source_name": "Google News Advertising",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREV4Y3pBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Marketing": [
+            {
+                "source_name": "Google News Marketing",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR2MwWjNJU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Rail transport": [
+            {
+                "source_name": "Google News Rail transport",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFprWHpNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Mail": [
+            {
+                "source_name": "Google News Mail",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1JvT0hNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Logistics": [
+            {
+                "source_name": "Google News Logistics",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR3M1YzNnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Tourism": [
+            {
+                "source_name": "Google News Tourism",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl3ZVhKMk5tZ1NBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Energy": [
+            {
+                "source_name": "Google News Energy",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREp0YlY4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "theenergycollective_allposts",
+                "source": "http://feeds.feedburner.com/theenergycollective_allposts"
+            },
+            {
+                "source_name": "Nytimes Energy",
+                "source": "http://feeds.nytimes.com/nyt/rss/EnergyEnvironment"
+            },
+            {
+                "source_name": "Bnef",
+                "source": "http://www.bnef.com/bnef/feed/"
+            },
+            {
+                "source_name": "Eia",
+                "source": "http://www.eia.gov/rss/todayinenergy.xml"
+            },
+            {
+                "source_name": "Ft Energy",
+                "source": "http://www.ft.com/rss/companies/energy"
+            },
+            {
+                "source_name": "Guardian Energy",
+                "source": "http://www.guardian.co.uk/environment/energy/rss"
+            },
+            {
+                "source_name": "Utilitydive",
+                "source": "http://www.utilitydive.com/feeds/news/"
+            }
+        ],
+        "Design": [
+            {
+                "source_name": "abduzeedo",
+                "source": "http://feeds.feedburner.com/abduzeedo"
+            },
+            {
+                "source_name": "blog",
+                "source": "http://feeds.feedburner.com/core77/blog"
+            },
+            {
+                "source_name": "design-milk",
+                "source": "http://feeds.feedburner.com/design-milk"
+            },
+            {
+                "source_name": "dezeen",
+                "source": "http://feeds.feedburner.com/dezeen"
+            },
+            {
+                "source_name": "Fastcodesign Design",
+                "source": "http://www.fastcodesign.com/rss.xml"
+            },
+            {
+                "source_name": "Home-designing Design",
+                "source": "http://www.home-designing.com/feed"
+            },
+            {
+                "source_name": "Yankodesign Design",
+                "source": "http://www.yankodesign.com/feed/"
+            }
+        ],
+        "Fracking": [
+            {
+                "source_name": "Stateimpact",
+                "source": "http://stateimpact.npr.org/pennsylvania/feed/"
+            },
+            {
+                "source_name": "Nytimes Fracking",
+                "source": "http://topics.nytimes.com/top/news/business/energy-environment/natural-gas/"
+            }
+        ],
+        "Hr": [
+            {
+                "source_name": "Evilhrlady",
+                "source": "http://evilhrlady.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "bloggingforjobs",
+                "source": "http://feeds.feedburner.com/bloggingforjobs"
+            },
+            {
+                "source_name": "HrBartender",
+                "source": "http://feeds.feedburner.com/HrBartender"
+            },
+            {
+                "source_name": "UpstartHR",
+                "source": "http://feeds.feedburner.com/UpstartHR"
+            },
+            {
+                "source_name": "Hrdailyadvisor",
+                "source": "http://hrdailyadvisor.blr.com/rss.aspx"
+            },
+            {
+                "source_name": "Hcamag",
+                "source": "http://www.hcamag.com/rss/"
+            },
+            {
+                "source_name": "Talentculture",
+                "source": "http://www.talentculture.com/feed/"
+            }
+        ],
+        "Lean": [
+            {
+                "source_name": "EvolvingExcellence",
+                "source": "http://feeds.feedburner.com/EvolvingExcellence"
+            },
+            {
+                "source_name": "LeanBlog",
+                "source": "http://feeds.feedburner.com/LeanBlog"
+            },
+            {
+                "source_name": "Leaninsider",
+                "source": "http://leaninsider.productivitypress.com/feeds/posts/default"
+            },
+            {
+                "source_name": "The Lean Thinker",
+                "source": "http://theleanthinker.com/feed/"
+            },
+            {
+                "source_name": "A Lean Journey",
+                "source": "http://www.aleanjourney.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Gembapantarei",
+                "source": "http://www.gembapantarei.com/index.xml"
+            },
+            {
+                "source_name": "Lean",
+                "source": "http://www.lean.org/leanpost_rss.xml"
+            }
+        ],
+        "Nuclear": [
+            {
+                "source_name": "Allthingsnuclear",
+                "source": "http://allthingsnuclear.org/rss"
+            },
+            {
+                "source_name": "IaeaTopNews",
+                "source": "http://feeds.feedburner.com/IaeaTopNews"
+            },
+            {
+                "source_name": "Guardian Nuclear",
+                "source": "http://www.guardian.co.uk/environment/nuclearpower/rss"
+            },
+            {
+                "source_name": "Nrc",
+                "source": "http://www.nrc.gov/public-involve/rss.cfm"
+            },
+            {
+                "source_name": "Nuclearpowerdaily",
+                "source": "http://www.nuclearpowerdaily.com/nuclearpowerdaily.xml"
+            },
+            {
+                "source_name": "World-nuclear-news",
+                "source": "http://www.world-nuclear-news.org/rss.aspx"
+            },
+            {
+                "source_name": "Worldnuclear",
+                "source": "http://www.worldnuclear.org/rss_publicnews.xml"
+            }
+        ],
+        "Seo": [
+            {
+                "source_name": "SearchEngineJournal",
+                "source": "http://feeds.feedburner.com/SearchEngineJournal"
+            },
+            {
+                "source_name": "seomoz",
+                "source": "http://feeds.feedburner.com/seomoz"
+            },
+            {
+                "source_name": "Searchengineland",
+                "source": "http://feeds.searchengineland.com/searchengineland"
+            },
+            {
+                "source_name": "Google Webmaster Central",
+                "source": "http://googlewebmastercentral.blogspot.com/atom.xml"
+            },
+            {
+                "source_name": "Searchenginewatch",
+                "source": "http://searchenginewatch.com/rss"
+            },
+            {
+                "source_name": "Neilpatel",
+                "source": "http://www.neilpatel.com/"
+            },
+            {
+                "source_name": "Seroundtable",
+                "source": "http://www.seroundtable.com/index.rdf"
+            }
+        ],
+        "Trucking": [
+            {
+                "source_name": "Cdllife",
+                "source": "http://cdllife.com/feed/"
+            },
+            {
+                "source_name": "Ccjdigital",
+                "source": "http://www.ccjdigital.com/feed/"
+            },
+            {
+                "source_name": "Overdriveonline",
+                "source": "http://www.overdriveonline.com/feed/"
+            },
+            {
+                "source_name": "Thetruckersreport",
+                "source": "http://www.thetruckersreport.com/feed/"
+            },
+            {
+                "source_name": "Truckinginfo",
+                "source": "http://www.truckinginfo.com/rss/"
+            },
+            {
+                "source_name": "Trucknews",
+                "source": "http://www.trucknews.com/rssfeeds/TN_dailynews.xml"
+            },
+            {
+                "source_name": "Ttnews",
+                "source": "http://www.ttnews.com/rss/ttnewsrss.xml"
+            }
+        ],
+        "Veterinary": [
+            {
+                "source_name": "avma",
+                "source": "http://feeds.feedburner.com/avma"
+            },
+            {
+                "source_name": "Kmdvm",
+                "source": "http://kmdvm.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Onlinelibrary Veterinary",
+                "source": "http://onlinelibrary.wiley.com/rss/journal/10.1111/(ISSN)1939-1676"
+            },
+            {
+                "source_name": "Vetgirlontherun",
+                "source": "http://vetgirlontherun.com/feed/"
+            },
+            {
+                "source_name": "Sciencedaily Veterinary",
+                "source": "http://www.sciencedaily.com/rss/plants_animals/veterinary_medicine.xml"
+            },
+            {
+                "source_name": "Veterinaryresearch",
+                "source": "http://www.veterinaryresearch.org/latest/rss"
+            },
+            {
+                "source_name": "Wormsandgermsblog",
+                "source": "http://www.wormsandgermsblog.com/index.xml"
+            }
+        ],
+        "Webflow": [
+            {
+                "source_name": "Webflow Webflow",
+                "source": "https://webflow.com/blog/rss.xml"
+            },
+            {
+                "source_name": "Webflow Webflow",
+                "source": "https://webflow.com/feature/rss.xml"
+            }
+        ],
+        "Wordpress": [
+            {
+                "source_name": "Wpbeginner",
+                "source": "http://feeds.feedburner.com/wpbeginner"
+            },
+            {
+                "source_name": "Wplift",
+                "source": "http://feeds.feedburner.com/Wplift"
+            },
+            {
+                "source_name": "Wordpress Mu",
+                "source": "http://feeds.feedburner.com/Wpmu-Wordpress-Mu-PluginsThemesAndNews"
+            },
+            {
+                "source_name": "Planet",
+                "source": "http://planet.wordpress.org/feed/"
+            },
+            {
+                "source_name": "Wordpress",
+                "source": "http://wordpress.org/development/feed/"
+            },
+            {
+                "source_name": "Wpmayor",
+                "source": "http://www.wpmayor.com/feed/"
+            },
+            {
+                "source_name": "Wptavern",
+                "source": "http://www.wptavern.com/feed"
+            }
+        ],
+        "Edtech": [
+            {
+                "source_name": "Classtechtips",
+                "source": "http://classtechtips.com/feed/"
+            },
+            {
+                "source_name": "EdTechK12",
+                "source": "http://feeds.feedburner.com/EdTechK12"
+            },
+            {
+                "source_name": "Ilearntechnology Edtech",
+                "source": "http://ilearntechnology.com/"
+            },
+            {
+                "source_name": "Educatorstechnology",
+                "source": "http://www.educatorstechnology.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Speedofcreativity",
+                "source": "http://www.speedofcreativity.org/feed/"
+            },
+            {
+                "source_name": "Thenerdyteacher",
+                "source": "http://www.thenerdyteacher.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Edsurge",
+                "source": "https://www.edsurge.com/articles_rss.rss"
+            }
+        ],
+        "Telecommunications": [
+            {
+                "source_name": "Google News Telecommunications",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl6TW1wdE1XUVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Internet": [
+            {
+                "source_name": "Google News Internet",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE55YkhRU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Cryptocurrency": [
+            {
+                "source_name": "Google News Cryptocurrency",
+                "source": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNSFp3YWpSZlloSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Defi": [
+            {
+                "source_name": "Bankless Defi",
+                "source": "https://bankless.substack.com/feed/"
+            },
+            {
+                "source_name": "Blog Defi",
+                "source": "https://blog.synthetix.io/rss/"
+            },
+            {
+                "source_name": "Defirate Defi",
+                "source": "https://defirate.com/feed/"
+            },
+            {
+                "source_name": "Defiweekly Defi",
+                "source": "https://defiweekly.substack.com/feed/"
+            },
+            {
+                "source_name": "Doseofdefi Defi",
+                "source": "https://doseofdefi.substack.com/feed/"
+            },
+            {
+                "source_name": "Sludgefeed Defi",
+                "source": "https://sludgefeed.com/feed/"
+            },
+            {
+                "source_name": "Todayindefi Defi",
+                "source": "https://todayindefi.substack.com/feed/"
+            }
+        ]
+    },
+    "Government": {
+        "Armed Forces": [
+            {
+                "source_name": "Google News Armed Forces",
+                "source": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZvTm5KcUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Education": [
+            {
+                "source_name": "Google News Education",
+                "source": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4Y0Raa09UQVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen"
+            },
+            {
+                "source_name": "dangerouslyirrelevant",
+                "source": "http://feeds.feedburner.com/dangerouslyirrelevant"
+            },
+            {
+                "source_name": "hackeducation",
+                "source": "http://feeds.feedburner.com/hackeducation"
+            },
+            {
+                "source_name": "nHAK",
+                "source": "http://feeds.feedburner.com/kqed/nHAK"
+            },
+            {
+                "source_name": "Npr Education",
+                "source": "http://www.npr.org/rss/rss.php"
+            },
+            {
+                "source_name": "Nytimes Education",
+                "source": "http://www.nytimes.com/services/xml/rss/nyt/Education.xml"
+            }
+        ],
+        "Government": [
+            {
+                "source_name": "Google News Government",
+                "source": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE0yYm5vU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen"
+            }
+        ],
+        "Fcc": [
+            {
+                "source_name": "Fcc",
+                "source": "http://www.fcc.gov/events/feed"
+            },
+            {
+                "source_name": "Fcclawblog",
+                "source": "http://www.fcclawblog.com/index.xml"
+            },
+            {
+                "source_name": "Api2",
+                "source": "https://api2.fcc.gov/edocs/public/api/v1/rss/bureaus/WTB"
+            },
+            {
+                "source_name": "Apps Fcc",
+                "source": "https://apps.fcc.gov/oetcf/els/rss/NewGrants.cfm"
+            },
+            {
+                "source_name": "Apps Fcc",
+                "source": "https://apps.fcc.gov/oetcf/kdb/rss/NewKDBPublications.cfm"
+            },
+            {
+                "source_name": "Fccid",
+                "source": "https://fccid.io/feed.rss"
+            },
+            {
+                "source_name": "Federalregister",
+                "source": "https://www.federalregister.gov/agencies/federal-communications-commission.rss"
+            }
+        ],
+        "Homelessness": [
+            {
+                "source_name": "Hhptf",
+                "source": "http://hhptf.org/rss/"
+            },
+            {
+                "source_name": "Homelessparadise",
+                "source": "http://homelessparadise.com/feed/"
+            },
+            {
+                "source_name": "Nlihc",
+                "source": "http://nlihc.org/rss.xml"
+            },
+            {
+                "source_name": "Huffington Post Homelessness",
+                "source": "http://www.huffingtonpost.com/tag/homelessness/feed/"
+            },
+            {
+                "source_name": "Endhomelessness",
+                "source": "https://endhomelessness.org/feed/"
+            },
+            {
+                "source_name": "The Guardian Homelessness",
+                "source": "https://www.theguardian.com/society/social-housing/rss"
+            }
+        ],
+        "Immigration": [
+            {
+                "source_name": "Immigrationimpact",
+                "source": "http://immigrationimpact.com/feed/"
+            },
+            {
+                "source_name": "Lawprofessors Immigration",
+                "source": "http://lawprofessors.typepad.com/immigration/atom.xml"
+            },
+            {
+                "source_name": "Nytimes Immigration",
+                "source": "http://topics.nytimes.com/top/reference/timestopics/subjects/i/immigration_and_refugees/"
+            },
+            {
+                "source_name": "Guardian Immigration",
+                "source": "http://www.guardian.co.uk/uk/immigration/rss"
+            },
+            {
+                "source_name": "Immigrationportal",
+                "source": "http://www.immigrationportal.com/external.php"
+            },
+            {
+                "source_name": "Murthy",
+                "source": "http://www.murthy.com/rss/murthydotcomrss.xml"
+            },
+            {
+                "source_name": "Uscis",
+                "source": "http://www.uscis.gov/rss.xml/11784"
+            }
+        ],
+        "Military": [
+            {
+                "source_name": "sofrep",
+                "source": "http://feeds.feedburner.com/sofrep"
+            },
+            {
+                "source_name": "WarIsBoring",
+                "source": "http://feeds.feedburner.com/WarIsBoring"
+            },
+            {
+                "source_name": "Foxtrotalpha",
+                "source": "http://foxtrotalpha.jalopnik.com/rss"
+            },
+            {
+                "source_name": "Smallwarsjournal",
+                "source": "http://smallwarsjournal.com/blog/atom.xml"
+            },
+            {
+                "source_name": "Warontherocks",
+                "source": "http://warontherocks.com/feed/"
+            },
+            {
+                "source_name": "Defense",
+                "source": "http://www.defense.gov/news/afps2.xml"
+            },
+            {
+                "source_name": "Spacewar Military",
+                "source": "http://www.spacewar.com/spacewar.xml"
+            }
+        ],
+        "Parliament": [
+            {
+                "source_name": "Data Parliament",
+                "source": "http://data.parliamentlive.tv/api/event/feed"
+            },
+            {
+                "source_name": "Legislation",
+                "source": "http://legislation.data.gov.uk/ukdsi/data.feed"
+            },
+            {
+                "source_name": "Parlinfo",
+                "source": "http://parlinfo.aph.gov.au/parlInfo/feeds/rss.w3p;adv=yes;orderBy=date-eFirst;page=0;query=Dataset%3Abillsdgs,prspub;resCount=Default"
+            },
+            {
+                "source_name": "Researchbriefings Parliament",
+                "source": "http://researchbriefings.parliament.uk/rssfeed/Commons%20Briefing%20papers"
+            },
+            {
+                "source_name": "Researchbriefings Parliament",
+                "source": "http://researchbriefings.parliament.uk/rssfeed/Lords%20Library%20notes"
+            },
+            {
+                "source_name": "Services Parliament",
+                "source": "http://services.parliament.uk/bills/AllBills.rss"
+            },
+            {
+                "source_name": "Aph",
+                "source": "http://www.aph.gov.au/senate/rss/upcoming_hearings.xml"
+            }
+        ],
+        "Police": [
+            {
+                "source_name": "thelatest",
+                "source": "http://feeds.feedburner.com/law-officer/thelatest"
+            },
+            {
+                "source_name": "Improvingpolice",
+                "source": "http://improvingpolice.wordpress.com/feed/"
+            },
+            {
+                "source_name": "Apbweb",
+                "source": "http://www.apbweb.com/index.php"
+            },
+            {
+                "source_name": "Leoaffairs",
+                "source": "http://www.leoaffairs.com/feed/"
+            },
+            {
+                "source_name": "Odmp",
+                "source": "http://www.odmp.org/rss.php"
+            },
+            {
+                "source_name": "Policeone",
+                "source": "http://www.policeone.com/law-enforcement-police-rss-feeds/news.xml"
+            },
+            {
+                "source_name": "Prweb Police",
+                "source": "http://www.prweb.com/rss2/govlaw.xml"
+            }
+        ],
+        "Surveillance": [
+            {
+                "source_name": "Library Surveillance",
+                "source": "http://library.queensu.ca/ojs/index.php/surveillance-and-society/gateway/plugin/WebFeedGatewayPlugin/rss2"
+            },
+            {
+                "source_name": "Thedigitalenclosure",
+                "source": "http://thedigitalenclosure.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Csistech",
+                "source": "http://www.csistech.org/blog"
+            },
+            {
+                "source_name": "Netcaucus",
+                "source": "http://www.netcaucus.org/feed/"
+            },
+            {
+                "source_name": "The Guardian Surveillance",
+                "source": "http://www.theguardian.com/world/surveillance/rss"
+            },
+            {
+                "source_name": "Theconversation",
+                "source": "https://theconversation.com/us/topics/surveillance/articles.atom"
+            },
+            {
+                "source_name": "Freedom Online Coalition",
+                "source": "https://www.freedomonlinecoalition.com/feed/"
+            }
+        ],
+        "Tax": [
+            {
+                "source_name": "Blogs Tax",
+                "source": "http://blogs.forbes.com/kellyphillipserb/feed/"
+            },
+            {
+                "source_name": "Dontmesswithtaxes",
+                "source": "http://dontmesswithtaxes.typepad.com/dont_mess_with_taxes/atom.xml"
+            },
+            {
+                "source_name": "TaxPolicyBlog",
+                "source": "http://feeds.feedburner.com/TaxPolicyBlog"
+            },
+            {
+                "source_name": "Taxprof",
+                "source": "http://taxprof.typepad.com/taxprof_blog/atom.xml"
+            },
+            {
+                "source_name": "Wanderingtaxpro",
+                "source": "http://wanderingtaxpro.blogspot.com/feeds/posts/default"
+            },
+            {
+                "source_name": "Taxgirl",
+                "source": "http://www.taxgirl.com/feed/"
+            },
+            {
+                "source_name": "Taxguru",
+                "source": "http://www.taxguru.in/feed"
+            }
+        ]
+    }
+}

@@ -221,30 +221,6 @@
       "source": "DW Asia News (World News)"
     },
     {
-      "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News World News (World News)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREp6ZEdkMEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Public Administration (World News)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGQwTmpVU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News United Nations (World News)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNRjgyZEY5Nk9CSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News European Union (World News)"
-    },
-    {
-      "url": "http://www.peacecorps.gov/rss/careerlink/jobs.xml",
-      "source": "Peacecorps Peace Corps (World News)"
-    },
-    {
-      "url": "http://www.peacecorps.gov/rss/peacecorpsnews.xml",
-      "source": "Peacecorps Peace Corps (World News)"
-    },
-    {
       "url": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",
       "source": "WSJ Markets (Economy)"
     },
@@ -645,16 +621,8 @@
       "source": "Jaapwesselius-com (Economy)"
     },
     {
-      "url": "http://mikecrowley.wordpress.com/feed/",
-      "source": "Mikecrowley (Economy)"
-    },
-    {
       "url": "http://www.expta.com/feeds/posts/default",
       "source": "Expta (Economy)"
-    },
-    {
-      "url": "https://ingogegenwarth.wordpress.com/feed/",
-      "source": "Ingogegenwarth (Economy)"
     },
     {
       "url": "https://techcommunity.microsoft.com/gxcuf89792/plugins/custom/microsoft/o365/custom-blog-rss",
@@ -781,24 +749,8 @@
       "source": "CNET News (Technology)"
     },
     {
-      "url": "https://www.wired.com/feed/rss",
-      "source": "Wired (Technology)"
-    },
-    {
       "url": "http://feeds.feedburner.com/TechCrunch/",
       "source": "TechCrunch (Technology)"
-    },
-    {
-      "url": "https://www.theverge.com/rss/index.xml",
-      "source": "The Verge (Technology)"
-    },
-    {
-      "url": "http://feeds.mashable.com/Mashable",
-      "source": "Mashable (Technology)"
-    },
-    {
-      "url": "https://www.engadget.com/rss.xml",
-      "source": "Engadget (Technology)"
     },
     {
       "url": "https://www.zdnet.com/news/rss.xml",
@@ -809,20 +761,8 @@
       "source": "The Next Web (Technology)"
     },
     {
-      "url": "https://www.digitaltrends.com/feed/",
-      "source": "Digital Trends (Technology)"
-    },
-    {
-      "url": "https://rss.pcmag.com/feed/",
-      "source": "PC Magazine (Technology)"
-    },
-    {
       "url": "https://www.anandtech.com/rss/",
       "source": "AnandTech (Technology)"
-    },
-    {
-      "url": "https://gizmodo.com/rss",
-      "source": "Gizmodo (Technology)"
     },
     {
       "url": "http://feeds.feedburner.com/venturebeat",
@@ -833,36 +773,8 @@
       "source": "TechRadar (Technology)"
     },
     {
-      "url": "https://www.macworld.com/index.rss",
-      "source": "Macworld (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/9To5Mac-MacAllDay",
-      "source": "9to5Mac (Technology)"
-    },
-    {
-      "url": "https://lifehacker.com/rss",
-      "source": "Lifehacker (Technology)"
-    },
-    {
-      "url": "https://www.gadgetreview.com/feed",
-      "source": "Gadget Review (Technology)"
-    },
-    {
-      "url": "https://www.makeuseof.com/feed/",
-      "source": "MakeUseOf (Technology)"
-    },
-    {
-      "url": "https://www.tomsguide.com/feeds/all",
-      "source": "Tom's Guide (Technology)"
-    },
-    {
       "url": "http://rss.slashdot.org/Slashdot/slashdot",
       "source": "Slashdot (Technology)"
-    },
-    {
-      "url": "https://feeds.feedburner.com/pocketnow",
-      "source": "Pocketnow (Technology)"
     },
     {
       "url": "https://www.theregister.com/headlines.atom",
@@ -887,10 +799,6 @@
     {
       "url": "https://rsshub.app/apnews/topics/social-media/",
       "source": "AP Social Media News (Technology)"
-    },
-    {
-      "url": "https://techxplore.com/rss-feed/",
-      "source": "Tech Xplore (Technology)"
     },
     {
       "url": "https://rsshub.app/apnews/topics/artificial-intelligence/",
@@ -925,10 +833,6 @@
       "source": "InfoQ (Technology)"
     },
     {
-      "url": "https://www.darkreading.com/rss.xml",
-      "source": "Dark Reading (Technology)"
-    },
-    {
       "url": "https://artificialintelligence-news.com/feed/",
       "source": "AI News (Technology)"
     },
@@ -939,10 +843,6 @@
     {
       "url": "https://www.sdxcentral.com/feed/",
       "source": "SDxCentral (Technology)"
-    },
-    {
-      "url": "https://www.securityweek.com/feed/",
-      "source": "SecurityWeek (Technology)"
     },
     {
       "url": "https://readwrite.com/feed/",
@@ -965,102 +865,6 @@
       "source": "CNBC Technology (Technology)"
     },
     {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNR0p6TW1vNGNSSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Big Data (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE41ZEdNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News IT (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREp0Y25BU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Electronics (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/EmbeddedProjectsFromAroundTheWeb",
-      "source": "EmbeddedProjectsFromAroundTheWeb (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/OpenElectronics",
-      "source": "OpenElectronics (Technology)"
-    },
-    {
-      "url": "http://www.adafruit.com/blog/feed/",
-      "source": "Adafruit (Technology)"
-    },
-    {
-      "url": "http://www.arduino.cc/blog/",
-      "source": "Arduino (Technology)"
-    },
-    {
-      "url": "http://www.eevblog.com/feed/",
-      "source": "Eevblog (Technology)"
-    },
-    {
-      "url": "http://www.seeedstudio.com/blog/feed/",
-      "source": "Seeedstudio (Technology)"
-    },
-    {
-      "url": "http://www.sparkfun.com/commerce/rss.php",
-      "source": "Sparkfun (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNRGh0YUROclpCSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Semiconductor (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREZ0WmpBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Software (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREkxYzJKb1poSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Software Development (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREo1WHpsdE14SUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Cloud Computing (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREl5ZUY4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Cybersecurity (Technology)"
-    },
-    {
-      "url": "http://datascience101.wordpress.com/feed/",
-      "source": "Datascience101 Data Science (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/AnalyticsVidhya",
-      "source": "AnalyticsVidhya (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/kdnuggets-data-mining-analytics",
-      "source": "Kdnuggets Data Mining Analytics (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/RBloggers",
-      "source": "RBloggers (Technology)"
-    },
-    {
-      "url": "http://www.datasciencecentral.com/profiles/blog/feed",
-      "source": "Datasciencecentral Data Science (Technology)"
-    },
-    {
-      "url": "http://www.stat.columbia.edu/~cook/movabletype/mlm/atom.xml",
-      "source": "Stat Data Science (Technology)"
-    },
-    {
-      "url": "https://medium.com/feed/towards-data-science",
-      "source": "Medium Data Science (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNRzFyZWhJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Artificial Intelligence (Technology)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZvZVdoZkVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Machine Learning (Technology)"
-    },
-    {
       "url": "http://blog.bigml.com/feed/",
       "source": "Blog Machine Learning (Technology)"
     },
@@ -1071,10 +875,6 @@
     {
       "url": "http://feeds.feedburner.com/MachineLearningMastery",
       "source": "Machine Learning Mastery (Technology)"
-    },
-    {
-      "url": "http://research.microsoft.com/rss/news.xml",
-      "source": "Research (Technology)"
     },
     {
       "url": "https://api.reddit.com/subreddit/MachineLearning",
@@ -1089,164 +889,12 @@
       "source": "Deepmind (Technology)"
     },
     {
-      "url": "http://droneblog.com/feed/",
-      "source": "Drone Blog (Technology)"
-    },
-    {
-      "url": "http://dronelife.com/feed/",
-      "source": "Drone Life (Technology)"
-    },
-    {
-      "url": "http://www.dronestagr.am/feed/",
-      "source": "Dronestagr (Technology)"
-    },
-    {
-      "url": "http://www.spacewar.com/uav.xml",
-      "source": "Spacewar Drones (Technology)"
-    },
-    {
-      "url": "http://www.suasnews.com/feed/",
-      "source": "Suasnews (Technology)"
-    },
-    {
-      "url": "http://www.uasvision.com/feed/",
-      "source": "Uasvision (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/GoogleBigquery-RevisionHistory",
-      "source": "Google Bigquery-Revision History (Technology)"
-    },
-    {
-      "url": "https://cloud.google.com/feeds/gcp-release-notes.xml",
-      "source": "Cloud (Technology)"
-    },
-    {
-      "url": "https://medium.com/feed/google-cloud",
-      "source": "Medium Gcp (Technology)"
-    },
-    {
-      "url": "https://snownews.appspot.com/feed",
-      "source": "Snownews (Technology)"
-    },
-    {
-      "url": "https://status.cloud.google.com/feed.atom",
-      "source": "Status Gcp (Technology)"
-    },
-    {
-      "url": "https://www.gcpweekly.com/feed/rss",
-      "source": "Gcpweekly (Technology)"
-    },
-    {
-      "url": "http://blog.stackoverflow.com/feed/",
-      "source": "Blog Programming (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/ScottHanselman",
-      "source": "ScottHanselman (Technology)"
-    },
-    {
-      "url": "http://martinfowler.com/bliki/bliki.atom",
-      "source": "Martinfowler (Technology)"
-    },
-    {
-      "url": "http://news.ycombinator.com/rss",
-      "source": "News Programming (Technology)"
-    },
-    {
-      "url": "http://thepracticaldev.com/feed",
-      "source": "Thepracticaldev (Technology)"
-    },
-    {
-      "url": "http://www.codeproject.com/webservices/articlerss.aspx",
-      "source": "Codeproject (Technology)"
-    },
-    {
-      "url": "https://medium.freecodecamp.com/feed",
-      "source": "Medium Programming (Technology)"
-    },
-    {
-      "url": "http://distrowatch.com/news/dw.xml",
-      "source": "Distrowatch (Technology)"
-    },
-    {
       "url": "http://feeds.feedburner.com/d0od",
       "source": "d0od (Technology)"
     },
     {
       "url": "http://feeds.feedburner.com/Phoronix",
       "source": "Phoronix (Technology)"
-    },
-    {
-      "url": "http://linuxtoday.com/backend/biglt.rss",
-      "source": "Linux Today (Technology)"
-    },
-    {
-      "url": "http://www.howtoforge.com/node/feed",
-      "source": "How to Forge (Technology)"
-    },
-    {
-      "url": "http://www.linuxinsider.com/perl/syndication/rssfull.pl",
-      "source": "Linux Insider (Technology)"
-    },
-    {
-      "url": "http://www.linuxjournal.com/node/feed",
-      "source": "Linux Journal (Technology)"
-    },
-    {
-      "url": "http://blog.sqlauthority.com/feed/",
-      "source": "SQL Authority (Technology)"
-    },
-    {
-      "url": "http://blogs.technet.com/dataplatforminsider/rss.xml",
-      "source": "Data Platform Insider (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/BrentOzar-SqlServerDba",
-      "source": "BrentOzar - SQL Server Dba (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/MSSQLTips-LatestSqlServerTips",
-      "source": "MS SQL Tips (Technology)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/SQLRockstar",
-      "source": "SQLRockstar (Technology)"
-    },
-    {
-      "url": "http://feeds2.feedburner.com/PaulSRandal",
-      "source": "Feeds2 Sql (Technology)"
-    },
-    {
-      "url": "http://www.sqlservercentral.com/sscrss.xml",
-      "source": "Sqlservercentral (Technology)"
-    },
-    {
-      "url": "http://www.roadtovr.com/feed",
-      "source": "Roadtovr (Technology)"
-    },
-    {
-      "url": "http://www.sciencedaily.com/rss/computers_math/virtual_reality.xml",
-      "source": "Sciencedaily Vr (Technology)"
-    },
-    {
-      "url": "http://www.uploadvr.com/feed/",
-      "source": "Uploadvr (Technology)"
-    },
-    {
-      "url": "http://www.virtualrealitytimes.com/feed/",
-      "source": "Virtualrealitytimes (Technology)"
-    },
-    {
-      "url": "https://api.reddit.com/subreddit/oculus",
-      "source": "Api Vr (Technology)"
-    },
-    {
-      "url": "https://api.reddit.com/subreddit/virtualreality",
-      "source": "Api Vr (Technology)"
-    },
-    {
-      "url": "https://www.oculus.com/blog/rss/",
-      "source": "Oculus (Technology)"
     },
     {
       "url": "https://www.pbs.org/newshour/feeds/rss/politics",
@@ -1297,10 +945,6 @@
       "source": "BBC Politics (Politics)"
     },
     {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFZ4ZERBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Politics (Politics)"
-    },
-    {
       "url": "http://feeds.dailykos.com/dailykos/index.xml",
       "source": "Dailykos (Politics)"
     },
@@ -1337,200 +981,12 @@
       "source": "The Hill (Politics)"
     },
     {
-      "url": "https://www.regulationasia.com/feed/",
-      "source": "Regulation Asia (Politics)"
-    },
-    {
-      "url": "https://finregalert.com/feed/",
-      "source": "FinReg Alert (Politics)"
-    },
-    {
-      "url": "https://www.insideprivacy.com/feed/",
-      "source": "Inside Privacy (Politics)"
-    },
-    {
-      "url": "https://www.cyberscoop.com/feed/",
-      "source": "CyberScoop (Politics)"
-    },
-    {
       "url": "https://www.euractiv.com/feed/",
       "source": "EurActiv (Politics)"
     },
     {
-      "url": "https://www.govinfosecurity.com/rss.xml",
-      "source": "GovInfoSecurity (Politics)"
-    },
-    {
-      "url": "https://www.jdsupra.com/rss/",
-      "source": "JD Supra (Politics)"
-    },
-    {
-      "url": "https://www.natlawreview.com/feed",
-      "source": "National Law Review (Politics)"
-    },
-    {
-      "url": "https://www.esgtoday.com/feed/",
-      "source": "ESG Today (Politics)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREl3ZUhkdEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Policy (Politics)"
-    },
-    {
-      "url": "http://eur-lex.europa.eu/EN/display-feed.rss",
-      "source": "Eur-lex (Politics)"
-    },
-    {
-      "url": "http://libraryeuroparl.wordpress.com/feed/",
-      "source": "Libraryeuroparl (Politics)"
-    },
-    {
-      "url": "http://www.consilium.europa.eu/en/rss/pressreleases.ashx",
-      "source": "Consilium (Politics)"
-    },
-    {
-      "url": "http://www.europarl.europa.eu/rss/committee/itre/en.xml",
-      "source": "Europarl (Politics)"
-    },
-    {
-      "url": "https://api.reddit.com/subreddit/europeanparliament",
-      "source": "Api European Parliament (Politics)"
-    },
-    {
-      "url": "https://www.flickr.com/services/feeds/photos_public.gne",
-      "source": "Flickr (Politics)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNR1pqYURCd0VnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Social Media (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNR2hyWmhJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Agriculture (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1l6T0dnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Forestry (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGswYW1NU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Fishing (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFV6Y21RU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Mining (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE0zZUhrU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Gas (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFZ5WDJvU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Petroleum (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNR3MwYWhJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Vehicles (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIAgKIhpDQkFTRFFvSEwyMHZNSGMzY3hJQ1pXNG9BQVAB?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Aerospace Engineering (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUwTjJkeUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Aerospace (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1o2ZVdjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Aviation (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFIwTjJ3U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Metal (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1J1Y2pjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Textile (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRGxxTW1RU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Clothing (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE15ZEd3U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Fashion (Industry)"
-    },
-    {
-      "url": "http://damselindior.com/feed/",
-      "source": "Damselindior (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/fashionistacom",
-      "source": "fashionistacom (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/highsnobiety/rss",
-      "source": "rss (Industry)"
-    },
-    {
-      "url": "http://hypebeast.com/feed/",
-      "source": "Hypebeast (Industry)"
-    },
-    {
-      "url": "http://www.businessoffashion.com/feed",
-      "source": "Businessoffashion (Industry)"
-    },
-    {
-      "url": "http://www.refinery29.com/index.xml",
-      "source": "Refinery29 (Industry)"
-    },
-    {
-      "url": "http://www.theblondesalad.com/feeds/posts/default",
-      "source": "Theblondesalad (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNREp4Y1dRMGJoSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Fashion Design (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREYwWW5BU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Chemical Engineering (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZ5Wm5CekVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Pharmacy (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFl5Y0Y4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Pharmacology (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFY2T0RjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Plastic (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4Yld0dWNuZ1NBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Costruction (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREpzZEhNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Electricity (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFZyT1RjU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Nuclear power (Industry)"
-    },
-    {
       "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFptYUhNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
       "source": "Google News Renewable Energy (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE51Wm13U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Hydropower (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFpyTVhJU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Real Estate (Industry)"
     },
     {
       "url": "http://feeds.feedburner.com/Geekestate",
@@ -1561,58 +1017,6 @@
       "source": "Appfolio (Industry)"
     },
     {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4Tkd4NWJIRVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Commerce (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUzYTNaMkVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Infrastructure (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl5Tkc1dFh6Z1NBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Civil Engineering (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNRE51Wm0xeEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Architecture (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyMHZNREV6TkhJMU5IRVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Urban planning (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNRFJyY1RZeUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Property Management (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREprZDNKdEVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Facility Management (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREp0T1RZU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News E-commerce (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREU1TVY4M0VnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Retail (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREk0Y21KcUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Cosmetology (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREUwZEhKc0VnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Cosmetics (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNRFp0WW01NUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Hospitality (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE40YTNNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Insurance (Industry)"
-    },
-    {
       "url": "http://www.claimsjournal.com/rss/news/",
       "source": "Claimsjournal (Industry)"
     },
@@ -1639,34 +1043,6 @@
     {
       "url": "https://www.reinsurancene.ws/feed/",
       "source": "Reinsurancene (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR2g2TWpnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Publishing (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREV4Y3pBU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Advertising (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR2MwWjNJU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Marketing (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFprWHpNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Rail transport (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR1JvT0hNU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Mail (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR3M1YzNnU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Logistics (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl3ZVhKMk5tZ1NBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Tourism (Industry)"
     },
     {
       "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNREp0YlY4U0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
@@ -1701,96 +1077,12 @@
       "source": "Utilitydive (Industry)"
     },
     {
-      "url": "http://feeds.feedburner.com/abduzeedo",
-      "source": "abduzeedo (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/core77/blog",
-      "source": "blog (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/design-milk",
-      "source": "design-milk (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/dezeen",
-      "source": "dezeen (Industry)"
-    },
-    {
-      "url": "http://www.fastcodesign.com/rss.xml",
-      "source": "Fastcodesign Design (Industry)"
-    },
-    {
-      "url": "http://www.home-designing.com/feed",
-      "source": "Home-designing Design (Industry)"
-    },
-    {
-      "url": "http://www.yankodesign.com/feed/",
-      "source": "Yankodesign Design (Industry)"
-    },
-    {
       "url": "http://stateimpact.npr.org/pennsylvania/feed/",
       "source": "Stateimpact (Industry)"
     },
     {
       "url": "http://topics.nytimes.com/top/news/business/energy-environment/natural-gas/",
       "source": "Nytimes Fracking (Industry)"
-    },
-    {
-      "url": "http://evilhrlady.blogspot.com/feeds/posts/default",
-      "source": "Evilhrlady (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/bloggingforjobs",
-      "source": "bloggingforjobs (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/HrBartender",
-      "source": "HrBartender (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/UpstartHR",
-      "source": "UpstartHR (Industry)"
-    },
-    {
-      "url": "http://hrdailyadvisor.blr.com/rss.aspx",
-      "source": "Hrdailyadvisor (Industry)"
-    },
-    {
-      "url": "http://www.hcamag.com/rss/",
-      "source": "Hcamag (Industry)"
-    },
-    {
-      "url": "http://www.talentculture.com/feed/",
-      "source": "Talentculture (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/EvolvingExcellence",
-      "source": "EvolvingExcellence (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/LeanBlog",
-      "source": "LeanBlog (Industry)"
-    },
-    {
-      "url": "http://leaninsider.productivitypress.com/feeds/posts/default",
-      "source": "Leaninsider (Industry)"
-    },
-    {
-      "url": "http://theleanthinker.com/feed/",
-      "source": "The Lean Thinker (Industry)"
-    },
-    {
-      "url": "http://www.aleanjourney.com/feeds/posts/default",
-      "source": "A Lean Journey (Industry)"
-    },
-    {
-      "url": "http://www.gembapantarei.com/index.xml",
-      "source": "Gembapantarei (Industry)"
-    },
-    {
-      "url": "http://www.lean.org/leanpost_rss.xml",
-      "source": "Lean (Industry)"
     },
     {
       "url": "http://allthingsnuclear.org/rss",
@@ -1821,200 +1113,16 @@
       "source": "Worldnuclear (Industry)"
     },
     {
-      "url": "http://feeds.feedburner.com/SearchEngineJournal",
-      "source": "SearchEngineJournal (Industry)"
+      "url": "http://feeds.feedburner.com/kqed/nHAK",
+      "source": "nHAK (Government)"
     },
     {
-      "url": "http://feeds.feedburner.com/seomoz",
-      "source": "seomoz (Industry)"
+      "url": "http://www.consilium.europa.eu/en/rss/pressreleases.ashx",
+      "source": "Consilium (Politics)"
     },
     {
-      "url": "http://feeds.searchengineland.com/searchengineland",
-      "source": "Searchengineland (Industry)"
-    },
-    {
-      "url": "http://googlewebmastercentral.blogspot.com/atom.xml",
-      "source": "Google Webmaster Central (Industry)"
-    },
-    {
-      "url": "http://searchenginewatch.com/rss",
-      "source": "Searchenginewatch (Industry)"
-    },
-    {
-      "url": "http://www.neilpatel.com/",
-      "source": "Neilpatel (Industry)"
-    },
-    {
-      "url": "http://www.seroundtable.com/index.rdf",
-      "source": "Seroundtable (Industry)"
-    },
-    {
-      "url": "http://cdllife.com/feed/",
-      "source": "Cdllife (Industry)"
-    },
-    {
-      "url": "http://www.ccjdigital.com/feed/",
-      "source": "Ccjdigital (Industry)"
-    },
-    {
-      "url": "http://www.overdriveonline.com/feed/",
-      "source": "Overdriveonline (Industry)"
-    },
-    {
-      "url": "http://www.thetruckersreport.com/feed/",
-      "source": "Thetruckersreport (Industry)"
-    },
-    {
-      "url": "http://www.truckinginfo.com/rss/",
-      "source": "Truckinginfo (Industry)"
-    },
-    {
-      "url": "http://www.trucknews.com/rssfeeds/TN_dailynews.xml",
-      "source": "Trucknews (Industry)"
-    },
-    {
-      "url": "http://www.ttnews.com/rss/ttnewsrss.xml",
-      "source": "Ttnews (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/avma",
-      "source": "avma (Industry)"
-    },
-    {
-      "url": "http://kmdvm.blogspot.com/feeds/posts/default",
-      "source": "Kmdvm (Industry)"
-    },
-    {
-      "url": "http://onlinelibrary.wiley.com/rss/journal/10.1111/(ISSN)1939-1676",
-      "source": "Onlinelibrary Veterinary (Industry)"
-    },
-    {
-      "url": "http://vetgirlontherun.com/feed/",
-      "source": "Vetgirlontherun (Industry)"
-    },
-    {
-      "url": "http://www.sciencedaily.com/rss/plants_animals/veterinary_medicine.xml",
-      "source": "Sciencedaily Veterinary (Industry)"
-    },
-    {
-      "url": "http://www.veterinaryresearch.org/latest/rss",
-      "source": "Veterinaryresearch (Industry)"
-    },
-    {
-      "url": "http://www.wormsandgermsblog.com/index.xml",
-      "source": "Wormsandgermsblog (Industry)"
-    },
-    {
-      "url": "https://webflow.com/blog/rss.xml",
-      "source": "Webflow Webflow (Industry)"
-    },
-    {
-      "url": "https://webflow.com/feature/rss.xml",
-      "source": "Webflow Webflow (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/wpbeginner",
-      "source": "Wpbeginner (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/Wplift",
-      "source": "Wplift (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/Wpmu-Wordpress-Mu-PluginsThemesAndNews",
-      "source": "Wordpress Mu (Industry)"
-    },
-    {
-      "url": "http://planet.wordpress.org/feed/",
-      "source": "Planet (Industry)"
-    },
-    {
-      "url": "http://wordpress.org/development/feed/",
-      "source": "Wordpress (Industry)"
-    },
-    {
-      "url": "http://www.wpmayor.com/feed/",
-      "source": "Wpmayor (Industry)"
-    },
-    {
-      "url": "http://www.wptavern.com/feed",
-      "source": "Wptavern (Industry)"
-    },
-    {
-      "url": "http://classtechtips.com/feed/",
-      "source": "Classtechtips (Industry)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/EdTechK12",
-      "source": "EdTechK12 (Industry)"
-    },
-    {
-      "url": "http://ilearntechnology.com/",
-      "source": "Ilearntechnology Edtech (Industry)"
-    },
-    {
-      "url": "http://www.educatorstechnology.com/feeds/posts/default",
-      "source": "Educatorstechnology (Industry)"
-    },
-    {
-      "url": "http://www.speedofcreativity.org/feed/",
-      "source": "Speedofcreativity (Industry)"
-    },
-    {
-      "url": "http://www.thenerdyteacher.com/feeds/posts/default",
-      "source": "Thenerdyteacher (Industry)"
-    },
-    {
-      "url": "https://www.edsurge.com/articles_rss.rss",
-      "source": "Edsurge (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl6TW1wdE1XUVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Telecommunications (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE55YkhRU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Internet (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJAgKIh5DQkFTRUFvS0wyMHZNSFp3YWpSZlloSUNaVzRvQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Cryptocurrency (Industry)"
-    },
-    {
-      "url": "https://bankless.substack.com/feed/",
-      "source": "Bankless Defi (Industry)"
-    },
-    {
-      "url": "https://blog.synthetix.io/rss/",
-      "source": "Blog Defi (Industry)"
-    },
-    {
-      "url": "https://defirate.com/feed/",
-      "source": "Defirate Defi (Industry)"
-    },
-    {
-      "url": "https://defiweekly.substack.com/feed/",
-      "source": "Defiweekly Defi (Industry)"
-    },
-    {
-      "url": "https://doseofdefi.substack.com/feed/",
-      "source": "Doseofdefi Defi (Industry)"
-    },
-    {
-      "url": "https://sludgefeed.com/feed/",
-      "source": "Sludgefeed Defi (Industry)"
-    },
-    {
-      "url": "https://todayindefi.substack.com/feed/",
-      "source": "Todayindefi Defi (Industry)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIggKIhxDQkFTRHdvSkwyMHZNREZvTm5KcUVnSmxiaWdBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Armed Forces (Government)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqJQgKIh9DQkFTRVFvTEwyY3ZNVEl4Y0Raa09UQVNBbVZ1S0FBUAE?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Education (Government)"
+      "url": "http://www.europarl.europa.eu/rss/committee/itre/en.xml",
+      "source": "Europarl (Politics)"
     },
     {
       "url": "http://feeds.feedburner.com/dangerouslyirrelevant",
@@ -2035,10 +1143,6 @@
     {
       "url": "http://www.nytimes.com/services/xml/rss/nyt/Education.xml",
       "source": "Nytimes Education (Government)"
-    },
-    {
-      "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRE0yYm5vU0FtVnVLQUFQAQ?hl=en-US&gl=US&ceid=US%3Aen",
-      "source": "Google News Government (Government)"
     },
     {
       "url": "http://www.fcc.gov/events/feed",
@@ -2231,34 +1335,6 @@
     {
       "url": "https://www.freedomonlinecoalition.com/feed/",
       "source": "Freedom Online Coalition (Government)"
-    },
-    {
-      "url": "http://blogs.forbes.com/kellyphillipserb/feed/",
-      "source": "Blogs Tax (Government)"
-    },
-    {
-      "url": "http://dontmesswithtaxes.typepad.com/dont_mess_with_taxes/atom.xml",
-      "source": "Dontmesswithtaxes (Government)"
-    },
-    {
-      "url": "http://feeds.feedburner.com/TaxPolicyBlog",
-      "source": "TaxPolicyBlog (Government)"
-    },
-    {
-      "url": "http://taxprof.typepad.com/taxprof_blog/atom.xml",
-      "source": "Taxprof (Government)"
-    },
-    {
-      "url": "http://wanderingtaxpro.blogspot.com/feeds/posts/default",
-      "source": "Wanderingtaxpro (Government)"
-    },
-    {
-      "url": "http://www.taxgirl.com/feed/",
-      "source": "Taxgirl (Government)"
-    },
-    {
-      "url": "http://www.taxguru.in/feed",
-      "source": "Taxguru (Government)"
     }
   ]
 }
