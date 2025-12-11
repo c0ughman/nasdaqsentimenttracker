@@ -24,7 +24,7 @@ import time
 import signal
 import sys
 import threading
-from datetime import datetime, time as datetime_time
+from datetime import datetime, time as datetime_time, timedelta
 from collections import deque
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -341,7 +341,10 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         
-        # Display startup info
+        # Display startup info with diagnostics
+        startup_time = datetime.now(EST_TZ)
+        market_open, market_reason = self.is_market_open()
+        
         self.stdout.write(self.style.SUCCESS(
             '\n' + '='*70 + '\n'
             '🚀 EODHD WebSocket Collector V2 (Second-by-Second Aggregation)\n'
@@ -350,7 +353,16 @@ class Command(BaseCommand):
         self.stdout.write(f'📊 Ticker: QLD (NASDAQ-100 2x Leveraged ETF)')
         self.stdout.write(f'📡 Symbol: {self.symbol}')
         self.stdout.write(f'⏰ Market Hours: 9:30 AM - 4:00 PM EST')
+        self.stdout.write(f'🕐 Current Time: {startup_time.strftime("%Y-%m-%d %I:%M:%S %p %Z")}')
+        self.stdout.write(f'📊 Market Status: {"OPEN ✅" if market_open else f"CLOSED ⏸️  ({market_reason})"}')
         self.stdout.write(f'💾 Saves: 1-second candles + 100-tick candles')
+        
+        if not market_open and not self.skip_market_hours:
+            sleep_seconds = self.seconds_until_market_open()
+            sleep_minutes = int(sleep_seconds / 60)
+            next_open = startup_time + timedelta(seconds=sleep_seconds)
+            self.stdout.write(f'⏳ Will connect at market open: {next_open.strftime("%I:%M:%S %p")} ({sleep_minutes} minutes)')
+        
         self.stdout.write('⌨️  Press Ctrl+C to stop\n')
         
         # Market hours loop
@@ -792,16 +804,18 @@ class Command(BaseCommand):
                 current_time = time.time()
 
                 # CRITICAL: Check market hours and disconnect if market is closed
+                # BUT keep running=True so we reconnect at next market open
                 if self.connection_established and not self.skip_market_hours:
                     market_open, reason = self.is_market_open()
                     if not market_open:
                         self.stdout.write(self.style.WARNING(
                             f'🔔 Market closed during active connection: {reason}\n'
-                            f'   Disconnecting to stop data collection...'
+                            f'   Disconnecting but will reconnect at next market open (9:30 AM EST)...'
                         ))
-                        self.running = False  # Stop the entire collector
+                        # DON'T set self.running = False - let the main loop handle reconnection
                         if self.ws:
                             self.ws.close()
+                        # Exit health monitor loop but NOT the main connection loop
                         break
 
                 # Check if we're connected and receiving data
@@ -968,9 +982,13 @@ class Command(BaseCommand):
                         f'(found {rss_result.get("articles_found", 0)} from {rss_result.get("feeds_polled", 0)} feed(s))'
                     ))
                 elif rss_result.get('error'):
-                    # Log errors only in verbose mode to avoid spam
-                    if self.verbose:
-                        self.stdout.write(self.style.WARNING(f'⚠️ RSS query error: {rss_result.get("error")}'))
+                    # Suppress common RSS errors (403/404/429) to reduce log noise
+                    error_str = str(rss_result.get("error", ""))
+                    is_common_error = any(code in error_str for code in ['403', '404', '429', 'timeout'])
+                    
+                    # Only log in verbose mode, and suppress common errors entirely
+                    if self.verbose and not is_common_error:
+                        self.stdout.write(self.style.WARNING(f'⚠️ RSS query error: {error_str}'))
                 elif rss_result.get('reason') == 'disabled':
                     # RSS is disabled, stop the loop
                     self.stdout.write(self.style.NOTICE('📰 RSS disabled, stopping loop'))
@@ -1607,20 +1625,27 @@ class Command(BaseCommand):
     
     def on_close(self, ws, close_status_code, close_msg):
         """Handle WebSocket close (with thread-safe duplicate prevention and comprehensive diagnostics)"""
-        # THREAD-SAFE: Prevent duplicate disconnect logging with immediate flag check and set
+        # CRITICAL FIX: Use immediate early return to prevent log storm
+        # Check flags WITHOUT acquiring lock first (faster check)
         current_time = time.time()
         
-        # CRITICAL: Use a more robust check-and-set pattern to prevent race conditions
+        # Fast path: if already closing or recently logged, return immediately without lock
+        if self._closing_in_progress:
+            return  # Already handling a close event
+        
+        if self.disconnect_logged and current_time - self._last_disconnect_log_time < 30.0:
+            return  # Already logged recently
+        
+        # Now acquire lock and double-check (prevent race conditions)
         with self.disconnect_log_lock:
-            # Check if we're already processing a close event
+            # Re-check after acquiring lock
             if self._closing_in_progress:
-                return  # Already handling a close, skip duplicate immediately
+                return
             
-            # Check if we've logged a disconnect in the last 30 seconds (increased from 10s)
             if self.disconnect_logged and current_time - self._last_disconnect_log_time < 30.0:
-                return  # Too soon, skip duplicate immediately
+                return
             
-            # IMMEDIATELY mark as processing BEFORE doing any work (prevents race conditions)
+            # IMMEDIATELY mark as processing BEFORE doing any work
             self._closing_in_progress = True
             self.disconnect_logged = True
             self._last_disconnect_log_time = current_time
@@ -1717,110 +1742,88 @@ class Command(BaseCommand):
                 time_since_429 = current_time - self.last_429_error_time
                 rate_limit_context += f" (last {time_since_429:.1f}s ago)"
 
-        # Log comprehensive diagnostics
-        self.stdout.write(self.style.WARNING(
-            '\n' + '='*70 + '\n'
-            '🔌 WEBSOCKET DISCONNECTION EVENT\n'
-            '='*70 + '\n'
-        ))
+        # Log comprehensive diagnostics (SINGLE MESSAGE to prevent log storm)
+        disconnect_msg_lines = [
+            '\n' + '='*70,
+            '🔌 WEBSOCKET DISCONNECTION EVENT',
+            '='*70
+        ]
 
+        # Build comprehensive diagnostics as SINGLE MESSAGE (prevent log storm)
         # Connection status
         if was_connected:
-            self.stdout.write(self.style.WARNING(
-                f'📊 Connection Status: ESTABLISHED connection was CLOSED\n'
-                f'⏱️  Connection Duration: {connection_duration:.1f} seconds\n'
-                f'📈 Ticks Collected: {self.total_ticks:,}'
-            ))
+            disconnect_msg_lines.append(f'📊 Connection Status: ESTABLISHED connection was CLOSED')
+            disconnect_msg_lines.append(f'⏱️  Connection Duration: {connection_duration:.1f} seconds')
+            disconnect_msg_lines.append(f'📈 Ticks Collected: {self.total_ticks:,}')
             if tick_rate:
-                self.stdout.write(self.style.WARNING(
-                    f'📊 Tick Rate: {tick_rate:.1f} ticks/second'
-                ))
+                disconnect_msg_lines.append(f'📊 Tick Rate: {tick_rate:.1f} ticks/second')
         else:
-            self.stdout.write(self.style.WARNING(
-                f'📊 Connection Status: HANDSHAKE FAILED (connection never established)\n'
-                f'❌ Could not complete WebSocket handshake with server'
-            ))
+            disconnect_msg_lines.append(f'📊 Connection Status: HANDSHAKE FAILED (connection never established)')
+            disconnect_msg_lines.append(f'❌ Could not complete WebSocket handshake with server')
 
         # Close code and message
         if close_status_code:
-            self.stdout.write(self.style.WARNING(
-                f'🔢 Close Code: {close_status_code}'
-            ))
+            disconnect_msg_lines.append(f'🔢 Close Code: {close_status_code}')
             if close_msg:
-                self.stdout.write(self.style.WARNING(
-                    f'💬 Close Message: {close_msg}'
-                ))
+                disconnect_msg_lines.append(f'💬 Close Message: {close_msg}')
         else:
-            self.stdout.write(self.style.WARNING(
-                f'🔢 Close Code: None (abnormal closure)'
-            ))
+            disconnect_msg_lines.append(f'🔢 Close Code: None (abnormal closure)')
 
         # Disconnection reason and category
-        self.stdout.write(self.style.ERROR(
-            f'🔍 Disconnection Reason: {disconnect_reason}\n'
-            f'📋 Category: {disconnect_category}'
-        ))
+        disconnect_msg_lines.append(f'🔍 Disconnection Reason: {disconnect_reason}')
+        disconnect_msg_lines.append(f'📋 Category: {disconnect_category}')
 
         # Data flow diagnostics
         if was_connected:
-            self.stdout.write(self.style.WARNING(
-                f'📊 Data Flow Diagnostics:'
-            ))
+            disconnect_msg_lines.append(f'📊 Data Flow Diagnostics:')
             if time_since_last_data is not None:
-                self.stdout.write(self.style.WARNING(
-                    f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds'
-                ))
+                disconnect_msg_lines.append(f'   ⏰ Time since last data: {time_since_last_data:.1f} seconds')
             else:
-                self.stdout.write(self.style.WARNING(
-                    f'   ⏰ Time since last data: Never received data'
-                ))
+                disconnect_msg_lines.append(f'   ⏰ Time since last data: Never received data')
             
-            self.stdout.write(self.style.WARNING(
-                f'   📈 SecondSnapshots created: {self.total_1sec_candles:,}\n'
-                f'   🎯 100-tick candles created: {self.total_100tick_candles:,}'
-            ))
+            disconnect_msg_lines.append(f'   📈 SecondSnapshots created: {self.total_1sec_candles:,}')
+            disconnect_msg_lines.append(f'   🎯 100-tick candles created: {self.total_100tick_candles:,}')
             
             with self.lock:
                 buffer_size = len(self.tick_buffer_1sec)
-            self.stdout.write(self.style.WARNING(
-                f'   📦 Ticks in buffer: {buffer_size} seconds'
-            ))
+            disconnect_msg_lines.append(f'   📦 Ticks in buffer: {buffer_size} seconds')
 
         # Rate limiting context
         if rate_limit_context:
-            self.stdout.write(self.style.ERROR(
-                f'🚫 Rate Limit Context:{rate_limit_context}'
-            ))
+            disconnect_msg_lines.append(f'🚫 Rate Limit Context:{rate_limit_context}')
 
         # Connection history
-        self.stdout.write(self.style.WARNING(
+        disconnect_msg_lines.append(
             f'🔄 Connection History: Total connections: {self.total_connections} | '
             f'Total disconnections: {self.total_disconnections}'
-        ))
+        )
 
         # Recommendations based on disconnect category
         if disconnect_category == "IDLE_TIMEOUT":
-            self.stdout.write(self.style.WARNING(
+            disconnect_msg_lines.append(
                 f'💡 Recommendation: Connection idle timeout detected. '
                 f'Consider checking ping/pong keepalive settings.'
-            ))
+            )
         elif disconnect_category == "RATE_LIMIT" or self.consecutive_429_errors > 0:
-            self.stdout.write(self.style.ERROR(
+            disconnect_msg_lines.append(
                 f'💡 Recommendation: Rate limiting detected. '
                 f'Reduce connection frequency or check API subscription limits.'
-            ))
+            )
         elif disconnect_category == "NETWORK_DROP":
-            self.stdout.write(self.style.WARNING(
+            disconnect_msg_lines.append(
                 f'💡 Recommendation: Network instability detected. '
                 f'Check network connectivity and firewall settings.'
-            ))
+            )
         elif disconnect_category == "SERVER_ERROR" or disconnect_category == "SERVER_OVERLOAD":
-            self.stdout.write(self.style.WARNING(
+            disconnect_msg_lines.append(
                 f'💡 Recommendation: Server-side issue detected. '
                 f'This is likely temporary - will retry with backoff.'
-            ))
+            )
 
-        self.stdout.write(self.style.WARNING('='*70 + '\n'))
+        disconnect_msg_lines.append('='*70 + '\n')
+        
+        # CRITICAL: Output as SINGLE message to prevent log storm
+        self.stdout.write(self.style.WARNING('\n'.join(disconnect_msg_lines)))
 
         # Reset connection state
         self.connection_established = False
@@ -1865,11 +1868,11 @@ class Command(BaseCommand):
         if self.ws:
             self.ws.close()
         
-        # Calculate statistics
+        # Calculate statistics (SINGLE MESSAGE to prevent log spam)
         uptime = time.time() - self.connection_start if self.connection_start else 0
         uptime_str = f"{int(uptime // 3600)}h {int((uptime % 3600) // 60)}m {int(uptime % 60)}s"
         
-        self.stdout.write(self.style.SUCCESS(
+        stats_msg = (
             f'\n' + '='*70 + '\n'
             f'📊 Session Statistics\n'
             f'='*70 + '\n'
@@ -1879,5 +1882,6 @@ class Command(BaseCommand):
             f'   Uptime: {uptime_str}\n'
             f'   Last candle: {self.last_second_timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.last_second_timestamp else "N/A"}\n'
             f'='*70
-        ))
+        )
+        self.stdout.write(self.style.SUCCESS(stats_msg))
         self.stdout.write(self.style.SUCCESS('✅ Collector stopped cleanly'))
