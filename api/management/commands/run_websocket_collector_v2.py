@@ -488,6 +488,19 @@ class Command(BaseCommand):
 
         while self.running:
             try:
+                # CRITICAL: Check market hours before each connection attempt
+                # This ensures we exit the loop when market closes and return to main loop
+                if not self.skip_market_hours and retry_count > 0:
+                    market_open, reason = self.is_market_open()
+                    if not market_open:
+                        self.stdout.write(self.style.WARNING(
+                            f'⏸️  Market closed - exiting connection loop: {reason}\n'
+                            f'   Will retry when main loop detects market open again'
+                        ))
+                        # Exit this method and return to main loop
+                        # Main loop will check market hours and sleep until market opens
+                        break
+                
                 # Calculate backoff delay
                 # OPTIMIZATION: If this is a reconnection after an established connection,
                 # use minimal delay (2s) to reconnect immediately
