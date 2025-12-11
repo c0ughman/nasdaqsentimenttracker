@@ -35,30 +35,45 @@ self.stdout.write('\n'.join(disconnect_msg_lines))  # One call
 
 ---
 
-### 2. ✅ Market Hours Reconnection Logic
+### 2. ✅ Market Hours Reconnection Logic (CRITICAL FIX)
 
 **Problem:**
 - When market closed at 4:00 PM EST, collector would disconnect
-- `self.running = False` was set, stopping the entire main loop
-- Script would NOT reconnect at next market open (9:30 AM EST)
+- `connect_and_run()` method had infinite `while self.running:` loop
+- **Would keep trying to reconnect forever, even after market closed**
+- Never returned to main loop to check market hours and sleep
+- Script would NOT reconnect at 9:30 AM EST next day
 - Required manual restart every morning
 
 **Root Cause:**
-- Health monitor set `self.running = False` on market close
-- Main loop checked this flag and exited completely
-- No logic to wait for next market open
+- `connect_and_run()` had `while self.running:` loop that never checked market hours
+- After WebSocket closed at 4 PM, it would immediately retry (line 548: `retry_count += 1`)
+- No way to exit the loop and return to main `handle()` loop
+- Main loop never got a chance to sleep until market open
 
-**Fix:**
-- Removed `self.running = False` from market close handler
-- Health monitor now only closes WebSocket, not entire script
-- Main loop continues running and checks market hours
-- Will automatically reconnect at 9:30 AM EST next day
+**Fix (Two-Part):**
+1. Removed `self.running = False` from health monitor (initial fix)
+2. **Added market hours check INSIDE `connect_and_run()` retry loop (critical fix)**
+   - Before each reconnect attempt, checks if market is open
+   - If market closed, breaks out of loop and returns to main loop
+   - Main loop then checks hours and sleeps until 9:30 AM EST
+3. Will automatically reconnect at 9:30 AM EST next day
 
 **Behavior Now:**
 ```
 4:00 PM EST: Market closes → Disconnect WebSocket
-4:00 PM - 9:30 AM: Sleep loop checking every 5 minutes
-9:30 AM EST: Market opens → Reconnect automatically ✅
+              ↓
+              connect_and_run() checks hours, sees CLOSED
+              ↓  
+              Exits loop, returns to main loop
+              ↓
+              Main loop sleeps until 9:30 AM (checks every 5 min)
+              ↓
+9:30 AM EST: Main loop wakes up, sees OPEN
+              ↓
+              Calls connect_and_run() again
+              ↓
+              Auto-reconnects! ✅
 ```
 
 ---
